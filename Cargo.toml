@@ -1,0 +1,24 @@
+[package]
+name = "wiki"
+version = "0.1.0"
+edition = "2021"
+
+[workspace]
+members = ["wikilinks", "wikiproc"]
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[dependencies]
+reqwest = { version = "0.11.10", features = ["json", "multipart"] }
+tokio = { version = "1", features = ["full"], optional = true }
+bytes = "1"
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+url = "2"
+thiserror = "1"
+wikiproc = { path = "./wikiproc" }
+bytemuck = { version = "1", features = ["derive"] }
+urlencoding = "2"
+
+[features]
+default = ["reqwest/cookies", "tokio"]
