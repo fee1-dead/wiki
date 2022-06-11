@@ -1,9 +1,6 @@
-use proc_macro2::{Ident, TokenStream as Ts};
+use proc_macro2::TokenStream as Ts;
 use quote::quote;
 use syn::{
-    parenthesized,
-    parse::{Parse, ParseStream, Parser},
-    punctuated::Punctuated,
     spanned::Spanned,
     Data, Fields, FieldsUnnamed, Lit, Meta, MetaNameValue, NestedMeta,
 };
@@ -14,7 +11,7 @@ synstructure::decl_derive!([WriteUrl, attributes(wikiproc)] => derive_write_url)
 #[derive(Default)]
 struct Options {
     named: Option<bool>,
-    default_lowercase: bool,
+    // default_lowercase: bool,
 }
 
 #[derive(Default)]
@@ -154,7 +151,7 @@ fn variant_name(v: &VariantInfo) -> String {
     name
 }
 
-fn derive_write_url(mut s: synstructure::Structure) -> syn::Result<Ts> {
+fn derive_write_url(s: synstructure::Structure) -> syn::Result<Ts> {
     let mut opts = Options::default();
     for attr in &s.ast().attrs {
         if attr.path.get_ident().map_or(false, |i| i == "wikiproc") {

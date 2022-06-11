@@ -210,6 +210,7 @@ pub type Result<T, E = Error> = std::result::Result<T, E>;
 // BotInn TM
 pub struct BotInn {
     site: Site,
+    #[allow(unused)]
     pass: BotPassword,
 }
 

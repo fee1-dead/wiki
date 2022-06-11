@@ -1,12 +1,12 @@
 use std::{collections::HashMap, num::NonZeroU16, sync::Arc};
 
-use reqwest::{multipart::Form, Method, Request, RequestBuilder, Url};
-use serde::{de::DeserializeOwned, ser::SerializeStruct, Deserialize, Serialize};
+use reqwest::Url;
+use serde::{de::DeserializeOwned, Deserialize};
 use serde_json::Value;
 
 use crate::{
-    req::{self, EnumSet, Login, Main, QueryProp, RvProp, RvSlot, SerializeAdaptor, TokenType},
-    BotPassword, Result, Simple, Site, WriteUrlParams,
+    req::{self, Login, Main, QueryProp, RvProp, RvSlot, TokenType},
+    BotPassword, Result, Simple, WriteUrlParams,
 };
 
 #[derive(Deserialize, Debug)]
