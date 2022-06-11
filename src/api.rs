@@ -1,10 +1,13 @@
-use std::{collections::HashMap, sync::Arc};
+use std::{collections::HashMap, num::NonZeroU16, sync::Arc};
 
 use reqwest::{multipart::Form, Method, Request, RequestBuilder, Url};
 use serde::{de::DeserializeOwned, ser::SerializeStruct, Deserialize, Serialize};
 use serde_json::Value;
 
-use crate::{BotPassword, Result, Site, req::{TokenType, Main, SerializeAdaptor}, Simple, WriteUrlParams};
+use crate::{
+    req::{self, EnumSet, Login, Main, QueryProp, RvProp, RvSlot, SerializeAdaptor, TokenType},
+    BotPassword, Result, Simple, Site, WriteUrlParams,
+};
 
 #[derive(Deserialize, Debug)]
 pub struct Slot {
@@ -68,8 +71,6 @@ pub trait TokenExt: Token {
     const QUERY: &'static str;
 }
 
-
-
 #[derive(Deserialize, Debug)]
 pub struct Page<S> {
     #[serde(rename = "pageid")]
@@ -90,32 +91,41 @@ pub struct Revisions<S> {
 }
 
 impl crate::Site {
-    fn make_url(&self, q: &str) -> Url {
-        let mut url = self.url.clone();
-        url.set_query(Some(q));
-        url
-    }
-
     fn mkurl(&self, m: Main) -> Url {
         let mut url = self.url.clone();
         let mut q = Simple::default();
-        if let Err(e) = m.ser(&mut q) { match e {} }
+        if let Err(e) = m.ser(&mut q) {
+            match e {}
+        }
         url.set_query(Some(&q.0));
         println!("{url}");
         url
     }
 
     pub async fn get_tokens<T: Token>(&self) -> Result<T> {
-        let res = self.client.get(self.mkurl(Main::tokens(T::types()))).send().await?;
+        let res = self
+            .client
+            .get(self.mkurl(Main::tokens(T::types())))
+            .send()
+            .await?;
         let tokens: Query<Tokens<T>> = res.json().await?;
-        println!("1");
         Ok(tokens.query.tokens)
     }
 
     /// Returns a page with the latest revision.
     pub async fn fetch(&self, name: &str) -> Result<crate::Page> {
         let name = name.replace(' ', "_");
-        let url = self.make_url(&format!("action=query&format=json&prop=revisions&rvslots=main&rvprop=ids|content&rvlimit=1&titles={name}"));
+        let m = Main::query(req::Query {
+            prop: QueryProp::Revisions {
+                rvprop: [RvProp::Ids, RvProp::Content].into(),
+                rvslots: [RvSlot::Main].into(),
+                rvlimit: NonZeroU16::new(1).unwrap(),
+            }
+            .into(),
+            titles: vec![name],
+            ..Default::default()
+        });
+        let url = self.mkurl(m);
         let res = self.client.get(url).send().await?;
         let t = res.text().await?;
         dbg!(&t);
@@ -142,12 +152,12 @@ impl crate::Site {
         ) -> Result<()> {
             let LoginToken { token } = this.get_tokens::<LoginToken>().await?;
             let req = this.client.post(this.url.clone());
-            let form = Form::new()
-                .text("action", "login")
-                .text("format", "json")
-                .text("lgname", username)
-                .text("lgpassword", password)
-                .text("lgtoken", token);
+            let l = Main::login(Login {
+                name: username,
+                password,
+                token,
+            });
+            let form = l.build_form();
             let v: Value = req.multipart(form).send().await?.json().await?;
             if v.get("login")
                 .and_then(|v| v.get("result"))
@@ -183,17 +193,16 @@ impl crate::Bot {
 impl crate::Page {
     pub async fn save(&self, newtext: &str, summary: &str) -> Result<()> {
         if let Some(bot) = &self.bot {
-            let cl = &bot.inn.site.client;
             let u = bot.inn.site.url.clone();
             let t = bot.inn.site.get_tokens::<CsrfToken>().await?;
-            let f = Form::new()
-                .text("action", "edit")
-                .text("pageid", self.id.to_string())
-                .text("summary", summary.to_owned())
-                .text("text", newtext.to_owned())
-                .text("token", t.token)
-                .text("baserevid", self.latest_revision.to_string())
-                .text("format", "json");
+            let m = Main::edit(req::Edit {
+                spec: req::PageSpec::Id { pageid: self.id },
+                summary: summary.to_owned(),
+                text: newtext.to_owned(),
+                baserevid: self.latest_revision,
+                token: t.token,
+            });
+            let f = m.build_form();
             let res = bot
                 .inn
                 .site

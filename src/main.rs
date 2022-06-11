@@ -1,4 +1,6 @@
-use wiki::{BotPassword, Site, req::{Main, TokenType}};
+use std::time::Instant;
+
+use wiki::{BotPassword, Site};
 
 #[tokio::main]
 async fn main() -> wiki::Result<()> {
@@ -7,6 +9,7 @@ async fn main() -> wiki::Result<()> {
 
 async fn main_() -> wiki::Result<()> {
     let site = Site::testwiki();
+    let i = Instant::now();
     let bot = site
         .login(BotPassword::new(
             "0xDeadbeef@Testing",
@@ -16,6 +19,7 @@ async fn main_() -> wiki::Result<()> {
         .unwrap();
 
     let page = bot.fetch("User talk:0xDeadbeef").await?;
-    page.save("Hello, World!!", "botte").await?;
+    page.save(&format!("Hello, World!! {:?}", i.elapsed()), "botte")
+        .await?;
     Ok(())
 }

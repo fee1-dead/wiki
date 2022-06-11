@@ -1,10 +1,10 @@
-use std::{collections::HashSet, fmt::Debug, hash::Hash, mem::discriminant};
+use std::{collections::HashSet, fmt::Debug, hash::Hash, mem::discriminant, num::NonZeroU16};
 
 use bytemuck::TransparentWrapper;
 use serde::ser::SerializeSeq;
 use wikiproc::WriteUrl;
 
-use crate::{NamedEnum, WriteUrlValue, TriStr, WriteUrlParams, SerdeAdaptor};
+use crate::{NamedEnum, SerdeAdaptor, TriStr, WriteUrlParams, WriteUrlValue};
 
 #[derive(TransparentWrapper)]
 #[repr(transparent)]
@@ -12,8 +12,9 @@ pub struct SerializeAdaptor<T>(pub T);
 
 impl<T: WriteUrlParams> serde::Serialize for SerializeAdaptor<T> {
     fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
-        where
-            S: serde::Serializer {
+    where
+        S: serde::Serializer,
+    {
         let mut w = SerdeAdaptor(serializer.serialize_seq(None)?);
         self.0.ser(&mut w)?;
         w.0.end()
@@ -66,6 +67,12 @@ impl<T> EnumSet<T> {
     }
 }
 
+impl<T> Default for EnumSet<T> {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 pub trait HasValue {
     const CAUTIOUS: bool;
     fn value<F: FnOnce(&str) -> R, R>(&self, accept: F) -> R;
@@ -74,7 +81,14 @@ pub trait HasValue {
 impl<T: NamedEnum> HasValue for VariantBased<T> {
     const CAUTIOUS: bool = false;
     fn value<F: FnOnce(&str) -> R, R>(&self, accept: F) -> R {
-        (accept)(self.0.variant_name())
+        accept(self.0.variant_name())
+    }
+}
+
+impl HasValue for String {
+    const CAUTIOUS: bool = true;
+    fn value<F: FnOnce(&str) -> R, R>(&self, accept: F) -> R {
+        accept(self)
     }
 }
 
@@ -114,6 +128,9 @@ impl<T: NamedEnum + WriteUrlValue> WriteUrlValue for EnumSet<T> {
         }
         let s = encode_multivalue(&self.set);
         let w = w.write(TriStr::Owned(s))?;
+        self.ser_additional_only(w)
+    }
+    fn ser_additional_only<W: crate::UrlParamWriter>(&self, w: &mut W) -> crate::Result<(), W::E> {
         for v in &self.set {
             v.0.ser_additional_only(w)?;
         }
@@ -147,9 +164,13 @@ impl<'a, T> From<T> for EnumSet<T> {
     }
 }
 
-impl<'a, T> From<[T; 0]> for EnumSet<T> {
-    fn from([]: [T; 0]) -> Self {
-        Self::new()
+impl<'a, T, const LEN: usize> From<[T; LEN]> for EnumSet<T> {
+    fn from(arr: [T; LEN]) -> Self {
+        let mut this = Self::new();
+        for x in arr {
+            this.insert(x);
+        }
+        this
     }
 }
 
@@ -160,18 +181,6 @@ pub struct Main {
 }
 
 impl Main {
-    pub fn tokens(t: &[TokenType]) -> Self {
-        Self {
-            action: Action::Query(Query {
-                list: [].into(),
-                meta: QueryMeta::Tokens {
-                    type_: t.into(),
-                }.into(),
-            }),
-            format: Format::Json,
-        }
-    }
-
     pub fn build_form(&self) -> reqwest::multipart::Form {
         let mut f = reqwest::multipart::Form::new();
         if let Err(inf) = self.ser(&mut f) {
@@ -179,18 +188,48 @@ impl Main {
         }
         f
     }
+
+    pub fn tokens(t: &[TokenType]) -> Self {
+        Self::query(Query {
+            meta: QueryMeta::Tokens { type_: t.into() }.into(),
+            ..Default::default()
+        })
+    }
+
+    pub fn action(action: Action) -> Self {
+        Self {
+            action,
+            format: Format::Json,
+        }
+    }
+
+    pub fn query(q: Query) -> Self {
+        Self::action(Action::Query(q))
+    }
+
+    pub fn login(l: Login) -> Self {
+        Self::action(Action::Login(l))
+    }
+
+    pub fn edit(e: Edit) -> Self {
+        Self::action(Action::Edit(e))
+    }
 }
 
 #[derive(WriteUrl)]
 pub enum Action {
     Query(Query),
     Edit(Edit),
+    Login(Login),
 }
 
-#[derive(WriteUrl)]
+#[derive(WriteUrl, Default)]
 pub struct Query {
     pub list: EnumSet<QueryList>,
     pub meta: EnumSet<QueryMeta>,
+    /// Which properties to get for the queried pages.
+    pub prop: EnumSet<QueryProp>,
+    pub titles: Vec<String>,
 }
 
 #[derive(WriteUrl)]
@@ -199,7 +238,6 @@ pub enum QueryList {
 }
 
 #[derive(WriteUrl)]
-#[non_exhaustive]
 pub enum QueryMeta {
     Tokens {
         #[wikiproc(name = "type")]
@@ -207,8 +245,44 @@ pub enum QueryMeta {
     },
 }
 
+#[derive(WriteUrl)]
+pub enum QueryProp {
+    Revisions {
+        rvprop: EnumSet<RvProp>,
+        rvslots: EnumSet<RvSlot>,
+        rvlimit: NonZeroU16,
+    },
+}
+
+#[derive(WriteUrl)]
+pub enum RvProp {
+    Comment,
+    Content,
+    ContentModel,
+    Flagged,
+    Flags,
+    Ids,
+    OresScores,
+    ParsedComment,
+    Roles,
+    Sha1,
+    Size,
+    SlotSha1,
+    SlotSize,
+    Tags,
+    Timestamp,
+    User,
+    UserId,
+}
+
+#[derive(WriteUrl)]
+pub enum RvSlot {
+    Main,
+    #[wikiproc(name = "*")]
+    All,
+}
+
 #[derive(WriteUrl, Clone, Copy)]
-#[non_exhaustive]
 pub enum TokenType {
     CreateAccount,
     Csrf,
@@ -225,13 +299,27 @@ pub enum TokenType {
 #[wikiproc(unnamed)]
 pub enum PageSpec {
     Title { title: String },
-    Id { id: u32 },
+    Id { pageid: usize },
 }
 
 #[derive(WriteUrl)]
 pub struct Edit {
     #[wikiproc(flatten)]
     pub spec: PageSpec,
+    pub text: String,
+    pub summary: String,
+    pub baserevid: usize,
+    pub token: String,
+}
+
+#[derive(WriteUrl)]
+pub struct Login {
+    #[wikiproc(name = "lgname")]
+    pub name: String,
+    #[wikiproc(name = "lgpassword")]
+    pub password: String,
+    #[wikiproc(name = "lgtoken")]
+    pub token: String,
 }
 
 #[derive(WriteUrl)]

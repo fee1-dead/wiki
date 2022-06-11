@@ -1,5 +1,6 @@
-use std::{sync::Arc, borrow::Cow, ops::Deref, convert::Infallible};
+use std::{borrow::Cow, convert::Infallible, num::NonZeroU16, ops::Deref, sync::Arc};
 
+use req::{encode_multivalue, HasValue};
 use reqwest::{
     header::{HeaderMap, HeaderValue},
     Client, Url,
@@ -104,16 +105,68 @@ impl<T: serde::ser::SerializeSeq> UrlParamWriter for SerdeAdaptor<T> {
     }
 }
 
-impl WriteUrlValue for u32 {
-    fn ser<W: UrlParamWriter>(&self, w: BufferedName<'_, W>) -> Result<(), W::E> {
-        w.write(TriStr::Owned(self.to_string()))?;
-        Ok(())
-    }
+macro_rules! display_impls {
+    ($($ty:ty),*$(,)?) => {$(
+        impl WriteUrlValue for $ty {
+            fn ser<W: UrlParamWriter>(&self, w: BufferedName<'_, W>) -> Result<(), W::E> {
+                w.write(TriStr::Owned(self.to_string()))?;
+                Ok(())
+            }
+        }
+    )*};
+}
+
+display_impls! {
+    u32,
+    usize,
+    NonZeroU16,
 }
 
 impl WriteUrlValue for String {
     fn ser<W: UrlParamWriter>(&self, w: BufferedName<'_, W>) -> Result<(), W::E> {
         w.write(TriStr::Shared(self))?;
+        Ok(())
+    }
+}
+
+impl<T: WriteUrlValue> WriteUrlValue for Option<T> {
+    fn ser<W: UrlParamWriter>(&self, w: BufferedName<'_, W>) -> Result<(), W::E> {
+        if let Some(this) = self {
+            this.ser(w)?;
+        }
+        Ok(())
+    }
+    fn ser_additional_only<W: UrlParamWriter>(&self, w: &mut W) -> Result<(), W::E> {
+        if let Some(this) = self {
+            this.ser_additional_only(w)?;
+        }
+        Ok(())
+    }
+}
+
+impl WriteUrlValue for bool {
+    fn ser<W: UrlParamWriter>(&self, w: BufferedName<'_, W>) -> Result<(), W::E> {
+        if *self {
+            w.write(TriStr::Static(""))?;
+        }
+        Ok(())
+    }
+}
+
+impl<T: WriteUrlValue + HasValue> WriteUrlValue for Vec<T> {
+    fn ser<W: UrlParamWriter>(&self, w: BufferedName<'_, W>) -> Result<(), W::E> {
+        if self.is_empty() {
+            return Ok(());
+        }
+        let s = encode_multivalue(self);
+        let w = w.write(TriStr::Owned(s))?;
+        self.ser_additional_only(w)
+    }
+
+    fn ser_additional_only<W: UrlParamWriter>(&self, w: &mut W) -> Result<(), W::E> {
+        for v in self {
+            v.ser_additional_only(w)?;
+        }
         Ok(())
     }
 }

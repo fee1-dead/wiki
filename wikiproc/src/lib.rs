@@ -93,7 +93,14 @@ fn gen_fields(v: &VariantInfo) -> Ts {
                 if opts.flatten {
                     quote!({crate::WriteUrlParams::ser(#b, w)?;})
                 } else {
-                    let name = opts.override_name.unwrap_or_else(|| b.ast().ident.as_ref().unwrap().to_string().to_ascii_lowercase());
+                    let name = opts.override_name.unwrap_or_else(|| {
+                        b.ast()
+                            .ident
+                            .as_ref()
+                            .unwrap()
+                            .to_string()
+                            .to_ascii_lowercase()
+                    });
                     quote! {{
                         let n = w.fork(crate::TriStr::Static(#name));
                         crate::WriteUrlValue::ser(#b, n)?;
