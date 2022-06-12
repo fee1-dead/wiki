@@ -1,9 +1,6 @@
 use proc_macro2::TokenStream as Ts;
 use quote::quote;
-use syn::{
-    spanned::Spanned,
-    Data, Fields, FieldsUnnamed, Lit, Meta, MetaNameValue, NestedMeta,
-};
+use syn::{spanned::Spanned, Data, Fields, FieldsUnnamed, Lit, Meta, MetaNameValue, NestedMeta};
 use synstructure::VariantInfo;
 
 synstructure::decl_derive!([WriteUrl, attributes(wikiproc)] => derive_write_url);
@@ -11,6 +8,7 @@ synstructure::decl_derive!([WriteUrl, attributes(wikiproc)] => derive_write_url)
 #[derive(Default)]
 struct Options {
     named: Option<bool>,
+    prepend_all: Option<String>,
     // default_lowercase: bool,
 }
 
@@ -32,6 +30,13 @@ impl Options {
                         }
                         NestedMeta::Meta(Meta::Path(p)) if p.is_ident("unnamed") => {
                             r.named = Some(false)
+                        }
+                        NestedMeta::Meta(Meta::NameValue(MetaNameValue {
+                            path,
+                            lit: Lit::Str(s),
+                            ..
+                        })) if path.is_ident("prepend_all") => {
+                            r.prepend_all = Some(s.value());
                         }
                         _ => return Err(syn::Error::new_spanned(m, "invalid meta")),
                     }
@@ -68,7 +73,7 @@ impl FieldOptions {
     }
 }
 
-fn gen_fields(v: &VariantInfo) -> Ts {
+fn gen_fields(v: &VariantInfo, o: &Options) -> Ts {
     match v.ast().fields {
         Fields::Named(_) => v
             .bindings()
@@ -91,12 +96,14 @@ fn gen_fields(v: &VariantInfo) -> Ts {
                     quote!({crate::WriteUrlParams::ser(#b, w)?;})
                 } else {
                     let name = opts.override_name.unwrap_or_else(|| {
-                        b.ast()
+                        let mut s = o.prepend_all.clone().unwrap_or_default();
+                        s.push_str(&*b.ast()
                             .ident
                             .as_ref()
                             .unwrap()
                             .to_string()
-                            .to_ascii_lowercase()
+                            .to_ascii_lowercase());
+                        s
                     });
                     quote! {{
                         let n = w.fork(crate::TriStr::Static(#name));
@@ -163,7 +170,7 @@ fn derive_write_url(s: synstructure::Structure) -> syn::Result<Ts> {
     match s.ast().data {
         Data::Union(_) => Err(syn::Error::new(s.ast().span(), "data union not supported")),
         Data::Struct(_) => {
-            let body = s.each_variant(gen_fields);
+            let body = s.each_variant(|v| gen_fields(v, &opts));
             Ok(s.gen_impl(quote::quote! {
                 gen impl crate::WriteUrlParams for @Self {
                     fn ser<W_: crate::UrlParamWriter>(&self, w: &mut W_) -> ::std::result::Result<(), W_::E> {
@@ -175,7 +182,7 @@ fn derive_write_url(s: synstructure::Structure) -> syn::Result<Ts> {
         }
         Data::Enum(_) => {
             if opts.named.unwrap_or(true) {
-                let body = s.each_variant(gen_fields);
+                let body = s.each_variant(|v| gen_fields(v, &opts));
                 let vnames = s.each_variant(variant_name);
                 let a = s.gen_impl(quote! {
                     gen impl crate::WriteUrlValue for @Self {

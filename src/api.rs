@@ -5,7 +5,7 @@ use serde::{de::DeserializeOwned, Deserialize};
 use serde_json::Value;
 
 use crate::{
-    req::{self, Login, Main, QueryProp, RvProp, RvSlot, TokenType},
+    req::{self, Login, Main, QueryProp, RvProp, RvSlot, TokenType, QueryPropRevisions},
     BotPassword, Result, Simple, WriteUrlParams,
 };
 
@@ -116,11 +116,11 @@ impl crate::Site {
     pub async fn fetch(&self, name: &str) -> Result<crate::Page> {
         let name = name.replace(' ', "_");
         let m = Main::query(req::Query {
-            prop: QueryProp::Revisions {
-                rvprop: [RvProp::Ids, RvProp::Content].into(),
-                rvslots: [RvSlot::Main].into(),
-                rvlimit: NonZeroU16::new(1).unwrap(),
-            }
+            prop: QueryProp::Revisions(QueryPropRevisions {
+                prop: [RvProp::Ids, RvProp::Content].into(),
+                slots: [RvSlot::Main].into(),
+                limit: NonZeroU16::new(1).unwrap(),
+            })
             .into(),
             titles: vec![name],
             ..Default::default()

@@ -1,4 +1,4 @@
-use std::{borrow::Cow, convert::Infallible, num::NonZeroU16, ops::Deref, sync::Arc};
+use std::{borrow::Cow, convert::Infallible, num::{NonZeroU16, NonZeroU32, NonZeroU64, NonZeroUsize}, ops::Deref, sync::Arc};
 
 use req::{encode_multivalue, HasValue};
 use reqwest::{
@@ -9,6 +9,7 @@ use serde::Deserialize;
 
 pub mod api;
 pub mod req;
+pub mod gen;
 
 pub trait WriteUrlParams {
     fn ser<W: UrlParamWriter>(&self, w: &mut W) -> Result<(), W::E>;
@@ -117,9 +118,14 @@ macro_rules! display_impls {
 }
 
 display_impls! {
+    u16,
     u32,
+    u64,
     usize,
     NonZeroU16,
+    NonZeroU32,
+    NonZeroU64,
+    NonZeroUsize,
 }
 
 impl WriteUrlValue for String {

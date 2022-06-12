@@ -1,4 +1,4 @@
-use std::{collections::HashSet, fmt::Debug, hash::Hash, mem::discriminant, num::NonZeroU16};
+use std::{collections::HashSet, fmt::Debug, hash::Hash, mem::discriminant, num::{NonZeroU16, NonZeroU32}};
 
 use bytemuck::TransparentWrapper;
 use serde::ser::SerializeSeq;
@@ -230,6 +230,7 @@ pub struct Query {
     /// Which properties to get for the queried pages.
     pub prop: EnumSet<QueryProp>,
     pub titles: Vec<String>,
+    pub generator: Option<QueryGenerator>,
 }
 
 #[derive(WriteUrl)]
@@ -247,11 +248,28 @@ pub enum QueryMeta {
 
 #[derive(WriteUrl)]
 pub enum QueryProp {
-    Revisions {
-        rvprop: EnumSet<RvProp>,
-        rvslots: EnumSet<RvSlot>,
-        rvlimit: NonZeroU16,
-    },
+    Revisions(QueryPropRevisions),
+}
+
+#[derive(WriteUrl)]
+#[wikiproc(prepend_all = "rv")]
+pub struct QueryPropRevisions {
+    pub prop: EnumSet<RvProp>,
+    pub slots: EnumSet<RvSlot>,
+    pub limit: NonZeroU16,
+}
+
+#[derive(WriteUrl)]
+pub enum QueryGenerator {
+    Search(SearchGenerator),
+}
+
+#[derive(WriteUrl)]
+#[wikiproc(prepend_all = "gsr")]
+pub struct SearchGenerator {
+    pub search: String,
+    pub limit: u32,
+    pub offset: Option<NonZeroU32>,
 }
 
 #[derive(WriteUrl)]
