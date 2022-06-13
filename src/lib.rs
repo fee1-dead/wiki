@@ -1,15 +1,17 @@
-use std::{borrow::Cow, convert::Infallible, num::{NonZeroU16, NonZeroU32, NonZeroU64, NonZeroUsize}, ops::Deref, sync::Arc};
+use std::borrow::Cow;
+use std::convert::Infallible;
+use std::num::{NonZeroU16, NonZeroU32, NonZeroU64, NonZeroUsize};
+use std::ops::Deref;
+use std::sync::Arc;
 
 use req::{encode_multivalue, HasValue};
-use reqwest::{
-    header::{HeaderMap, HeaderValue},
-    Client, Url,
-};
+use reqwest::header::{HeaderMap, HeaderValue};
+use reqwest::{Client, Url};
 use serde::Deserialize;
 
 pub mod api;
-pub mod req;
 pub mod gen;
+pub mod req;
 
 pub trait WriteUrlParams {
     fn ser<W: UrlParamWriter>(&self, w: &mut W) -> Result<(), W::E>;

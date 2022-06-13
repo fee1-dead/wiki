@@ -1,6 +1,7 @@
 use proc_macro2::TokenStream as Ts;
 use quote::quote;
-use syn::{spanned::Spanned, Data, Fields, FieldsUnnamed, Lit, Meta, MetaNameValue, NestedMeta};
+use syn::spanned::Spanned;
+use syn::{Data, Fields, FieldsUnnamed, Lit, Meta, MetaNameValue, NestedMeta};
 use synstructure::VariantInfo;
 
 synstructure::decl_derive!([WriteUrl, attributes(wikiproc)] => derive_write_url);
@@ -97,12 +98,14 @@ fn gen_fields(v: &VariantInfo, o: &Options) -> Ts {
                 } else {
                     let name = opts.override_name.unwrap_or_else(|| {
                         let mut s = o.prepend_all.clone().unwrap_or_default();
-                        s.push_str(&*b.ast()
-                            .ident
-                            .as_ref()
-                            .unwrap()
-                            .to_string()
-                            .to_ascii_lowercase());
+                        s.push_str(
+                            &*b.ast()
+                                .ident
+                                .as_ref()
+                                .unwrap()
+                                .to_string()
+                                .to_ascii_lowercase(),
+                        );
                         s
                     });
                     quote! {{

@@ -1,4 +1,8 @@
-use std::{collections::HashSet, fmt::Debug, hash::Hash, mem::discriminant, num::{NonZeroU16, NonZeroU32}};
+use std::collections::HashSet;
+use std::fmt::Debug;
+use std::hash::Hash;
+use std::mem::discriminant;
+use std::num::{NonZeroU16, NonZeroU32};
 
 use bytemuck::TransparentWrapper;
 use serde::ser::SerializeSeq;

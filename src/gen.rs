@@ -1,7 +1,9 @@
-use std::{pin::Pin, task::{Context, Poll}};
+use std::pin::Pin;
+use std::task::{Context, Poll};
 
 use futures_core::Stream;
 
+use crate::req::{Main, Query};
 use crate::{Bot, Page};
 
 pub struct SearchGenerator {
@@ -18,7 +20,9 @@ impl SearchGenerator {
 impl Stream for SearchGenerator {
     type Item = Page;
     fn poll_next(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Option<Self::Item>> {
+        let m = Main::query(Query {
+            ..Default::default()
+        });
         todo!()
     }
 }
-

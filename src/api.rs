@@ -1,13 +1,14 @@
-use std::{collections::HashMap, num::NonZeroU16, sync::Arc};
+use std::collections::HashMap;
+use std::num::NonZeroU16;
+use std::sync::Arc;
 
 use reqwest::Url;
-use serde::{de::DeserializeOwned, Deserialize};
+use serde::de::DeserializeOwned;
+use serde::Deserialize;
 use serde_json::Value;
 
-use crate::{
-    req::{self, Login, Main, QueryProp, RvProp, RvSlot, TokenType, QueryPropRevisions},
-    BotPassword, Result, Simple, WriteUrlParams,
-};
+use crate::req::{self, Login, Main, QueryProp, QueryPropRevisions, RvProp, RvSlot, TokenType};
+use crate::{BotPassword, Result, Simple, WriteUrlParams};
 
 #[derive(Deserialize, Debug)]
 pub struct Slot {
