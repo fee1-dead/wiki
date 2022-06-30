@@ -14,7 +14,7 @@ use tokio::time::{interval, Interval, MissedTickBehavior};
 
 use crate::jobs::{JobQueue, create_server, JobRunner};
 use crate::req::{
-    self, Login, Main, PageSpec, QueryProp, QueryPropRevisions, RvProp, RvSlot, TokenType,
+    self, Login, Main, PageSpec, QueryProp, QueryPropRevisions, RvProp, RvSlot, TokenType, QueryMeta, MetaUserInfo, UserInfoProp,
 };
 use crate::url::WriteUrlParams;
 use crate::{BotPassword, Result};
@@ -105,6 +105,24 @@ pub enum PageRef<'a> {
     Id(u32),
 }
 
+#[derive(Deserialize, Debug)]
+pub struct UserInfo<E> {
+    pub userinfo: UserInfoInner<E>,
+}
+
+#[derive(Deserialize, Debug)]
+pub struct UserInfoInner<E> {
+    pub id: usize,
+    pub name: String,
+    #[serde(flatten)]
+    pub extra: E,
+}
+
+#[derive(Deserialize, Debug)]
+pub struct UserInfoRights {
+    pub rights: Vec<String>,
+}
+
 pub fn mkurl(mut url: Url, m: Main) -> Url {
     let mut q = crate::url::Simple::default();
     if let Err(e) = m.ser(&mut q) {
@@ -115,12 +133,18 @@ pub fn mkurl(mut url: Url, m: Main) -> Url {
     url
 }
 
-pub trait RequestBuilderExt {
-    fn send_and_report_err(self) -> Pin<Box<dyn core::future::Future<Output = crate::Result<Value>> + Send + Sync>>;
+pub trait RequestBuilderExt: Sized {
+    fn send_and_report_err(self) -> Pin<Box<dyn Future<Output = crate::Result<Value>> + Send + Sync>>;
+    fn send_parse<D: DeserializeOwned>(self) -> Pin<Box<dyn Future<Output = crate::Result<D>> + Send + Sync>> where Self: Send + Sync + 'static {
+        Box::pin(async move {
+            let v = self.send_and_report_err().await?;
+            Ok(serde_json::from_value(v)?)
+        })
+    }
 }
 
 impl RequestBuilderExt for reqwest::RequestBuilder {
-    fn send_and_report_err(self) -> Pin<Box<dyn core::future::Future<Output = crate::Result<Value>> + Send + Sync>> {
+    fn send_and_report_err(self) -> Pin<Box<dyn Future<Output = crate::Result<Value>> + Send + Sync>> {
         Box::pin(async {
             let r = self.send().await?;
             let mut v = r.json::<Value>().await?;
@@ -146,8 +170,8 @@ pub async fn fetch(client: &Client, url: Url, spec: PageSpec) -> Result<crate::P
         ..Default::default()
     };
     match spec {
-        PageSpec::Title { title } => q.titles = vec![title],
-        PageSpec::Id { pageid } => q.pageids = vec![pageid],
+        PageSpec::Title { title } => q.titles = vec![title].into(),
+        PageSpec::Id { pageid } => q.pageids = vec![pageid].into(),
     };
 
     let m = Main::query(q);
@@ -180,6 +204,11 @@ pub async fn get_tokens<T: Token>(url: Url, client: &Client) -> Result<T> {
     Ok(tokens.query.tokens)
 }
 
+#[derive(Clone)]
+pub struct BotOptions {
+    highlimits: bool,
+}
+
 impl crate::Site {
     pub fn mkurl(&self, m: Main) -> Url {
         mkurl(self.url.clone(), m)
@@ -199,10 +228,11 @@ impl crate::Site {
         password: BotPassword,
         editdelay: Duration,
     ) -> Result<(crate::Bot, JobRunner), (Self, crate::Error)> {
+        
         async fn login_(
             this: &crate::Site,
             BotPassword { username, password }: BotPassword,
-        ) -> Result<()> {
+        ) -> Result<BotOptions> {
             let LoginToken { token } = this.get_tokens::<LoginToken>().await?;
             let req = this.client.post(this.url.clone());
             let l = Main::login(Login {
@@ -216,7 +246,15 @@ impl crate::Site {
                 .and_then(|v| v.get("result"))
                 .map_or(false, |v| v == "Success")
             {
-                Ok(())
+                let url = this.mkurl(Main::query(req::Query {
+                    meta: Some(QueryMeta::UserInfo(MetaUserInfo { prop: UserInfoProp::Rights.into() }).into()),
+                    ..Default::default()
+                }));
+                let res: Query<UserInfo<UserInfoRights>> = this.client.get(url).send_parse().await?;
+
+                Ok(BotOptions {
+                    highlimits: res.query.userinfo.extra.rights.iter().any(|s| s == "apihighlimits"),
+                })
             } else {
                 panic!("Vandalism detected. Your actions will be logged at [[WP:LTA/BotAbuser]]")
             }
@@ -226,7 +264,7 @@ impl crate::Site {
         interval.set_missed_tick_behavior(MissedTickBehavior::Delay);
         
         match res {
-            Ok(()) => {
+            Ok(options) => {
                 let (queue, r) = create_server(self.client.clone());
                 Ok((crate::Bot {
                     inn: Arc::new(crate::BotInn {
@@ -236,6 +274,7 @@ impl crate::Site {
                     }),
                     queue,
                     client: self.client,
+                    options,
                 }, r))
             }
             Err(e) => Err((self, e)),

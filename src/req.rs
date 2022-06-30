@@ -52,6 +52,7 @@ impl<T: Debug> Debug for VariantBased<T> {
     }
 }
 
+// TODO more efficient
 pub struct EnumSet<T> {
     set: HashSet<VariantBased<T>>,
 }
@@ -237,8 +238,8 @@ pub struct Query {
     pub meta: Option<EnumSet<QueryMeta>>,
     /// Which properties to get for the queried pages.
     pub prop: Option<EnumSet<QueryProp>>,
-    pub titles: Vec<String>,
-    pub pageids: Vec<u32>,
+    pub titles: Option<Vec<String>>,
+    pub pageids: Option<Vec<u32>>,
     pub generator: Option<QueryGenerator>,
 }
 
@@ -254,6 +255,18 @@ pub enum QueryMeta {
         #[wikiproc(name = "type")]
         type_: EnumSet<TokenType>,
     },
+    UserInfo(MetaUserInfo),
+}
+
+#[derive(WriteUrl)]
+#[wikiproc(prepend_all = "ui")]
+pub struct MetaUserInfo {
+    pub prop: EnumSet<UserInfoProp>,
+}
+
+#[derive(WriteUrl)]
+pub enum UserInfoProp {
+    Rights,
 }
 
 #[derive(WriteUrl)]

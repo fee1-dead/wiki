@@ -67,8 +67,7 @@ impl SearchGenerator {
                     ..Default::default()
                 });
                 let u = this.bot.mkurl(m);
-                let r = tryit!(this.bot.client.get(u).send_and_report_err().await);
-                let res: api::Query<Revisions<SlotsMain>> = tryit!(serde_json::from_value(r));
+                let res: api::Query<Revisions<SlotsMain>> = tryit!(this.bot.client.get(u).send_parse().await);
             }
             todo!()
         })

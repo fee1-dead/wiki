@@ -1,5 +1,6 @@
 use std::sync::Arc;
 
+use api::BotOptions;
 use jobs::JobQueue;
 use reqwest::header::{HeaderMap, HeaderValue};
 use reqwest::{Client, Url};
@@ -71,6 +72,7 @@ pub struct Bot {
     inn: Arc<BotInn>,
     queue: JobQueue,
     client: Client,
+    options: BotOptions,
 }
 
 #[derive(Clone)]
