@@ -8,7 +8,10 @@ use bytemuck::TransparentWrapper;
 use serde::ser::SerializeSeq;
 use wikiproc::WriteUrl;
 
-use crate::{NamedEnum, SerdeAdaptor, TriStr, WriteUrlParams, WriteUrlValue};
+use crate::macro_support::{
+    BufferedName, NamedEnum, UrlParamWriter, WriteUrlParams, WriteUrlValue,
+};
+use crate::url::SerdeAdaptor;
 
 #[derive(TransparentWrapper)]
 #[repr(transparent)]
@@ -96,6 +99,13 @@ impl HasValue for String {
     }
 }
 
+impl HasValue for u32 {
+    const CAUTIOUS: bool = false;
+    fn value<F: FnOnce(&str) -> R, R>(&self, accept: F) -> R {
+        accept(&*self.to_string())
+    }
+}
+
 #[must_use]
 pub fn encode_multivalue<'a, T: HasValue + 'a, V: IntoIterator<Item = &'a T> + Clone>(
     values: V,
@@ -123,18 +133,12 @@ pub fn encode_multivalue<'a, T: HasValue + 'a, V: IntoIterator<Item = &'a T> + C
 }
 
 impl<T: NamedEnum + WriteUrlValue> WriteUrlValue for EnumSet<T> {
-    fn ser<W: crate::UrlParamWriter>(
-        &self,
-        w: crate::BufferedName<'_, W>,
-    ) -> crate::Result<(), W::E> {
-        if self.set.is_empty() {
-            return Ok(());
-        }
+    fn ser<W: UrlParamWriter>(&self, w: BufferedName<'_, W>) -> crate::Result<(), W::E> {
         let s = encode_multivalue(&self.set);
-        let w = w.write(TriStr::Owned(s))?;
+        let w = w.write(s.into())?;
         self.ser_additional_only(w)
     }
-    fn ser_additional_only<W: crate::UrlParamWriter>(&self, w: &mut W) -> crate::Result<(), W::E> {
+    fn ser_additional_only<W: UrlParamWriter>(&self, w: &mut W) -> crate::Result<(), W::E> {
         for v in &self.set {
             v.0.ser_additional_only(w)?;
         }
@@ -195,7 +199,7 @@ impl Main {
 
     pub fn tokens(t: &[TokenType]) -> Self {
         Self::query(Query {
-            meta: QueryMeta::Tokens { type_: t.into() }.into(),
+            meta: Some(QueryMeta::Tokens { type_: t.into() }.into()),
             ..Default::default()
         })
     }
@@ -229,17 +233,19 @@ pub enum Action {
 
 #[derive(WriteUrl, Default)]
 pub struct Query {
-    pub list: EnumSet<QueryList>,
-    pub meta: EnumSet<QueryMeta>,
+    pub list: Option<EnumSet<QueryList>>,
+    pub meta: Option<EnumSet<QueryMeta>>,
     /// Which properties to get for the queried pages.
-    pub prop: EnumSet<QueryProp>,
+    pub prop: Option<EnumSet<QueryProp>>,
     pub titles: Vec<String>,
+    pub pageids: Vec<u32>,
     pub generator: Option<QueryGenerator>,
 }
 
 #[derive(WriteUrl)]
 pub enum QueryList {
     Search { srsearch: String },
+    CategoryMembers {},
 }
 
 #[derive(WriteUrl)]
@@ -260,7 +266,7 @@ pub enum QueryProp {
 pub struct QueryPropRevisions {
     pub prop: EnumSet<RvProp>,
     pub slots: EnumSet<RvSlot>,
-    pub limit: NonZeroU16,
+    pub limit: Option<NonZeroU16>,
 }
 
 #[derive(WriteUrl)]
@@ -321,7 +327,7 @@ pub enum TokenType {
 #[wikiproc(unnamed)]
 pub enum PageSpec {
     Title { title: String },
-    Id { pageid: usize },
+    Id { pageid: u32 },
 }
 
 #[derive(WriteUrl)]
@@ -330,7 +336,7 @@ pub struct Edit {
     pub spec: PageSpec,
     pub text: String,
     pub summary: String,
-    pub baserevid: usize,
+    pub baserevid: u32,
     pub token: String,
 }
 
@@ -351,4 +357,17 @@ pub enum Format {
     Php,
     RawFm,
     Xml,
+}
+
+#[derive(WriteUrl)]
+#[wikiproc(prepend_all = "cm")]
+pub struct ListCategoryMembers {
+    #[wikiproc(flatten)]
+    spec: PageSpec,
+    set: Option<EnumSet<CmProps>>,
+}
+
+#[derive(WriteUrl)]
+pub enum CmProps {
+    Ids,
 }

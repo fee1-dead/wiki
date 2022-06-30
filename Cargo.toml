@@ -19,7 +19,7 @@ thiserror = "1"
 wikiproc = { path = "./wikiproc" }
 bytemuck = { version = "1", features = ["derive"] }
 urlencoding = "2"
-futures-core = "0.3.21"
+futures-util = "0.3.21"
 
 [features]
 default = ["reqwest/cookies", "tokio"]

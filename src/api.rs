@@ -1,14 +1,23 @@
 use std::collections::HashMap;
+use std::future::Future;
 use std::num::NonZeroU16;
+use std::pin::Pin;
 use std::sync::Arc;
+use std::time::Duration;
 
-use reqwest::Url;
+use reqwest::{Url, Client, Response};
 use serde::de::DeserializeOwned;
 use serde::Deserialize;
 use serde_json::Value;
+use tokio::sync::{Mutex, MutexGuard};
+use tokio::time::{interval, Interval, MissedTickBehavior};
 
-use crate::req::{self, Login, Main, QueryProp, QueryPropRevisions, RvProp, RvSlot, TokenType};
-use crate::{BotPassword, Result, Simple, WriteUrlParams};
+use crate::jobs::{JobQueue, create_server, JobRunner};
+use crate::req::{
+    self, Login, Main, PageSpec, QueryProp, QueryPropRevisions, RvProp, RvSlot, TokenType,
+};
+use crate::url::WriteUrlParams;
+use crate::{BotPassword, Result};
 
 #[derive(Deserialize, Debug)]
 pub struct Slot {
@@ -28,9 +37,9 @@ pub struct SlotsMain {
 #[derive(Deserialize, Debug)]
 pub struct Revision<S> {
     #[serde(rename = "revid")]
-    pub rev_id: usize,
+    pub rev_id: u32,
     #[serde(rename = "parentid")]
-    pub parent_id: usize,
+    pub parent_id: u32,
     pub slots: S,
 }
 
@@ -75,7 +84,7 @@ pub trait TokenExt: Token {
 #[derive(Deserialize, Debug)]
 pub struct Page<S> {
     #[serde(rename = "pageid")]
-    pub page_id: usize,
+    pub page_id: u32,
     pub ns: u8,
     pub title: String,
     pub revisions: Vec<Revision<S>>,
@@ -91,62 +100,105 @@ pub struct Revisions<S> {
     pub pages: HashMap<usize, Page<S>>,
 }
 
+pub enum PageRef<'a> {
+    Title(&'a str),
+    Id(u32),
+}
+
+pub fn mkurl(mut url: Url, m: Main) -> Url {
+    let mut q = crate::url::Simple::default();
+    if let Err(e) = m.ser(&mut q) {
+        match e {}
+    }
+    url.set_query(Some(&q.0));
+    println!("{url}"); // TODO remove
+    url
+}
+
+pub trait RequestBuilderExt {
+    fn send_and_report_err(self) -> Pin<Box<dyn core::future::Future<Output = crate::Result<Value>> + Send + Sync>>;
+}
+
+impl RequestBuilderExt for reqwest::RequestBuilder {
+    fn send_and_report_err(self) -> Pin<Box<dyn core::future::Future<Output = crate::Result<Value>> + Send + Sync>> {
+        Box::pin(async {
+            let r = self.send().await?;
+            let mut v = r.json::<Value>().await?;
+            if let Some(v) = v.get_mut("error") {
+                Err(crate::Error::MediaWiki(v.take()))
+            } else {
+                Ok(v)
+            }
+        })
+    }
+}
+
+pub async fn fetch(client: &Client, url: Url, spec: PageSpec) -> Result<crate::Page> {
+    let mut q = req::Query {
+        prop: Some(
+            QueryProp::Revisions(QueryPropRevisions {
+                prop: [RvProp::Ids, RvProp::Content].into(),
+                slots: [RvSlot::Main].into(),
+                limit: NonZeroU16::new(1),
+            })
+            .into(),
+        ),
+        ..Default::default()
+    };
+    match spec {
+        PageSpec::Title { title } => q.titles = vec![title],
+        PageSpec::Id { pageid } => q.pageids = vec![pageid],
+    };
+
+    let m = Main::query(q);
+
+    let url = mkurl(url, m);
+    let res = client.get(url).send_and_report_err().await?;
+    println!("{res}");
+    let body: Query<Revisions<SlotsMain>> = serde_json::from_value(res).unwrap();
+    let mut pages = body.query.pages.into_iter();
+    let (_, page) = pages.next().expect("page to exist");
+    assert!(pages.next().is_none());
+
+    let [rev]: [_; 1] = page.revisions.try_into().unwrap();
+
+    Ok(crate::Page {
+        content: rev.slots.main.content,
+        latest_revision: rev.rev_id,
+        id: page.page_id,
+        changed: false,
+        bot: None,
+    })
+}
+
+pub async fn get_tokens<T: Token>(url: Url, client: &Client) -> Result<T> {
+    let res = client
+        .get(mkurl(url, Main::tokens(T::types())))
+        .send()
+        .await?;
+    let tokens: Query<Tokens<T>> = res.json().await?;
+    Ok(tokens.query.tokens)
+}
+
 impl crate::Site {
-    fn mkurl(&self, m: Main) -> Url {
-        let mut url = self.url.clone();
-        let mut q = Simple::default();
-        if let Err(e) = m.ser(&mut q) {
-            match e {}
-        }
-        url.set_query(Some(&q.0));
-        println!("{url}");
-        url
+    pub fn mkurl(&self, m: Main) -> Url {
+        mkurl(self.url.clone(), m)
     }
 
     pub async fn get_tokens<T: Token>(&self) -> Result<T> {
-        let res = self
-            .client
-            .get(self.mkurl(Main::tokens(T::types())))
-            .send()
-            .await?;
-        let tokens: Query<Tokens<T>> = res.json().await?;
-        Ok(tokens.query.tokens)
+        get_tokens(self.url.clone(), &self.client).await
     }
 
     /// Returns a page with the latest revision.
-    pub async fn fetch(&self, name: &str) -> Result<crate::Page> {
-        let name = name.replace(' ', "_");
-        let m = Main::query(req::Query {
-            prop: QueryProp::Revisions(QueryPropRevisions {
-                prop: [RvProp::Ids, RvProp::Content].into(),
-                slots: [RvSlot::Main].into(),
-                limit: NonZeroU16::new(1).unwrap(),
-            })
-            .into(),
-            titles: vec![name],
-            ..Default::default()
-        });
-        let url = self.mkurl(m);
-        let res = self.client.get(url).send().await?;
-        let t = res.text().await?;
-        dbg!(&t);
-        let body: Query<Revisions<SlotsMain>> = serde_json::from_str(&t).unwrap();
-        let mut pages = body.query.pages.into_iter();
-        let (_, page) = pages.next().expect("page to exist");
-        assert!(pages.next().is_none());
-
-        let [rev]: [_; 1] = page.revisions.try_into().unwrap();
-
-        Ok(crate::Page {
-            content: rev.slots.main.content,
-            latest_revision: rev.rev_id,
-            id: page.page_id,
-            changed: false,
-            bot: None,
-        })
+    pub async fn fetch(&self, spec: PageSpec) -> Result<crate::Page> {
+        fetch(&self.client, self.url.clone(), spec).await
     }
 
-    pub async fn login(self, password: BotPassword) -> Result<crate::Bot, (Self, crate::Error)> {
+    pub async fn login(
+        self,
+        password: BotPassword,
+        editdelay: Duration,
+    ) -> Result<(crate::Bot, JobRunner), (Self, crate::Error)> {
         async fn login_(
             this: &crate::Site,
             BotPassword { username, password }: BotPassword,
@@ -159,7 +211,7 @@ impl crate::Site {
                 token,
             });
             let form = l.build_form();
-            let v: Value = req.multipart(form).send().await?.json().await?;
+            let v: Value = req.multipart(form).send_and_report_err().await?;
             if v.get("login")
                 .and_then(|v| v.get("result"))
                 .map_or(false, |v| v == "Success")
@@ -170,43 +222,62 @@ impl crate::Site {
             }
         }
         let res = login_(&self, password.clone()).await;
+        let mut interval = interval(editdelay);
+        interval.set_missed_tick_behavior(MissedTickBehavior::Delay);
+        
         match res {
-            Ok(()) => Ok(crate::Bot {
-                inn: Arc::new(crate::BotInn {
-                    site: self,
-                    pass: password,
-                }),
-            }),
+            Ok(()) => {
+                let (queue, r) = create_server(self.client.clone());
+                Ok((crate::Bot {
+                    inn: Arc::new(crate::BotInn {
+                        pass: password,
+                        control: Mutex::new(interval),
+                        url: self.url,
+                    }),
+                    queue,
+                    client: self.client,
+                }, r))
+            }
             Err(e) => Err((self, e)),
         }
     }
 }
 
 impl crate::Bot {
-    pub async fn fetch(&self, name: &str) -> Result<crate::Page> {
-        self.inn.site.fetch(name).await.map(|p| crate::Page {
+    pub async fn fetch(&self, spec: PageSpec) -> Result<crate::Page> {
+        fetch(&self.client, self.inn.url.clone(), spec).await.map(|p| crate::Page {
             bot: Some(self.clone()),
             ..p
         })
     }
+
+    pub async fn control(&self) -> MutexGuard<'_, Interval> {
+        self.inn.control.lock().await
+    }
+
+    pub fn mkurl(&self, m: Main) -> Url {
+        mkurl(self.inn.url.clone(), m)
+    }
 }
 
 impl crate::Page {
-    pub async fn save(&self, newtext: &str, summary: &str) -> Result<()> {
+    pub async fn save(&self, summary: &str) -> Result<()> {
         if let Some(bot) = &self.bot {
-            let u = bot.inn.site.url.clone();
-            let t = bot.inn.site.get_tokens::<CsrfToken>().await?;
+            if !self.changed {
+                return Ok(());
+            }
+
+            let u = bot.inn.url.clone();
+            let t = get_tokens::<CsrfToken>(bot.inn.url.clone(), &bot.client).await?;
             let m = Main::edit(req::Edit {
                 spec: req::PageSpec::Id { pageid: self.id },
                 summary: summary.to_owned(),
-                text: newtext.to_owned(),
+                text: self.content.to_owned(),
                 baserevid: self.latest_revision,
                 token: t.token,
             });
             let f = m.build_form();
             let res = bot
-                .inn
-                .site
                 .client
                 .post(u)
                 .multipart(f)
@@ -216,9 +287,21 @@ impl crate::Page {
                 .await?;
             dbg!(res);
 
+            bot.control().await.tick().await;
+
             Ok(())
         } else {
             panic!("User is not logged in. This action will be logged.")
+        }
+    }
+
+    pub async fn refetch(&mut self) -> Result<()> {
+        if let Some(bot) = &self.bot {
+            let f = bot.fetch(PageSpec::Id { pageid: self.id }).await?;
+            *self = f;
+            Ok(())
+        } else {
+            panic!("I will come up with better panic messages next time")
         }
     }
 }

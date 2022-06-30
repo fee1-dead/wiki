@@ -1,4 +1,4 @@
-use proc_macro2::TokenStream as Ts;
+use proc_macro2::{Span, TokenStream as Ts};
 use quote::quote;
 use syn::spanned::Spanned;
 use syn::{Data, Fields, FieldsUnnamed, Lit, Meta, MetaNameValue, NestedMeta};
@@ -52,6 +52,7 @@ impl Options {
 impl FieldOptions {
     pub fn parse(meta: Meta) -> syn::Result<Self> {
         let mut r = Self::default();
+        let span = meta.span();
         match meta {
             Meta::List(ml) => {
                 for m in ml.nested {
@@ -70,7 +71,22 @@ impl FieldOptions {
             }
             _ => return Err(syn::Error::new_spanned(meta, "invalid options")),
         }
+        r.verify(span)?;
         Ok(r)
+    }
+
+    pub fn verify(&self, s: Span) -> syn::Result<()> {
+        Err(syn::Error::new(
+            s,
+            match self {
+                FieldOptions {
+                    flatten: true,
+                    override_name: Some(_),
+                    ..
+                } => "`flatten` and `name` are mutually exclusive",
+                _ => return Ok(()),
+            },
+        ))
     }
 }
 
@@ -93,25 +109,31 @@ fn gen_fields(v: &VariantInfo, o: &Options) -> Ts {
                         };
                     }
                 }
-                if opts.flatten {
-                    quote!({crate::WriteUrlParams::ser(#b, w)?;})
-                } else {
-                    let name = opts.override_name.unwrap_or_else(|| {
-                        let mut s = o.prepend_all.clone().unwrap_or_default();
-                        s.push_str(
-                            &*b.ast()
-                                .ident
-                                .as_ref()
-                                .unwrap()
-                                .to_string()
-                                .to_ascii_lowercase(),
-                        );
-                        s
-                    });
-                    quote! {{
-                        let n = w.fork(crate::TriStr::Static(#name));
-                        crate::WriteUrlValue::ser(#b, n)?;
-                    }}
+                match (&o.prepend_all, opts) {
+                    (Some(pp), FieldOptions { flatten: true, .. }) => {
+                        quote!({::wiki::macro_support::WriteUrlParams::ser(#b, &mut ::wiki::macro_support::PrependAdaptor::new(&mut w, #pp))?;})
+                    }
+                    (None, FieldOptions { flatten: true, .. }) => {
+                        quote!({::wiki::macro_support::WriteUrlParams::ser(#b, w)?;})
+                    }
+                    (pp, FieldOptions { override_name, .. }) => {
+                        let name = override_name.unwrap_or_else(|| {
+                            let mut s = pp.clone().unwrap_or_default();
+                            s.push_str(
+                                &*b.ast()
+                                    .ident
+                                    .as_ref()
+                                    .unwrap()
+                                    .to_string()
+                                    .to_ascii_lowercase(),
+                            );
+                            s
+                        });
+                        quote! {{
+                            let n = w.fork(::wiki::macro_support::TriStr::Static(#name));
+                            ::wiki::macro_support::WriteUrlValue::ser(#b, n)?;
+                        }}
+                    }
                 }
             })
             .collect(),
@@ -120,7 +142,7 @@ fn gen_fields(v: &VariantInfo, o: &Options) -> Ts {
         Fields::Unnamed(FieldsUnnamed { unnamed, .. }) if unnamed.len() == 1 => v
             .bindings()
             .iter()
-            .map(|i| quote!(crate::WriteUrlParams::ser(#i, w)?;))
+            .map(|i| quote!(::wiki::macro_support::WriteUrlParams::ser(#i, w)?;))
             .collect(),
         Fields::Unnamed(FieldsUnnamed { unnamed, .. }) => syn::Error::new_spanned(
             unnamed,
@@ -175,8 +197,8 @@ fn derive_write_url(s: synstructure::Structure) -> syn::Result<Ts> {
         Data::Struct(_) => {
             let body = s.each_variant(|v| gen_fields(v, &opts));
             Ok(s.gen_impl(quote::quote! {
-                gen impl crate::WriteUrlParams for @Self {
-                    fn ser<W_: crate::UrlParamWriter>(&self, w: &mut W_) -> ::std::result::Result<(), W_::E> {
+                gen impl ::wiki::macro_support::WriteUrlParams for @Self {
+                    fn ser<W_: ::wiki::macro_support::UrlParamWriter>(&self, mut w: &mut W_) -> ::std::result::Result<(), W_::E> {
                         match *self { #body }
                         Ok(())
                     }
@@ -188,19 +210,19 @@ fn derive_write_url(s: synstructure::Structure) -> syn::Result<Ts> {
                 let body = s.each_variant(|v| gen_fields(v, &opts));
                 let vnames = s.each_variant(variant_name);
                 let a = s.gen_impl(quote! {
-                    gen impl crate::WriteUrlValue for @Self {
-                        fn ser<W_: crate::UrlParamWriter>(&self, w: crate::BufferedName<'_, W_>) -> ::std::result::Result<(), W_::E> {
-                            let w = w.write(crate::TriStr::Static(crate::NamedEnum::variant_name(self)))?;
+                    gen impl ::wiki::macro_support::WriteUrlValue for @Self {
+                        fn ser<W_: ::wiki::macro_support::UrlParamWriter>(&self, w: ::wiki::macro_support::BufferedName<'_, W_>) -> ::std::result::Result<(), W_::E> {
+                            let w = w.write(::wiki::macro_support::TriStr::Static(::wiki::macro_support::NamedEnum::variant_name(self)))?;
                             self.ser_additional_only(w)
                         }
-                        fn ser_additional_only<W_: crate::UrlParamWriter>(&self, w: &mut W_) -> ::std::result::Result<(), W_::E> {
+                        fn ser_additional_only<W_: ::wiki::macro_support::UrlParamWriter>(&self, w: &mut W_) -> ::std::result::Result<(), W_::E> {
                             match *self { #body }
                             Ok(())
                         }
                     }
                 });
                 let b = s.gen_impl(quote! {
-                    gen impl crate::NamedEnum for @Self {
+                    gen impl ::wiki::macro_support::NamedEnum for @Self {
                         fn variant_name(&self) -> &'static str {
                             match *self { #vnames }
                         }
@@ -215,15 +237,15 @@ fn derive_write_url(s: synstructure::Structure) -> syn::Result<Ts> {
                         .map(|b| {
                             let name = b.ast().ident.as_ref().unwrap().to_string();
                             quote! {{
-                                let n = w.fork(crate::TriStr::Static(#name));
-                                crate::WriteUrlValue::ser(#b, n)?;
+                                let n = w.fork(::wiki::macro_support::TriStr::Static(#name));
+                                ::wiki::macro_support::WriteUrlValue::ser(#b, n)?;
                             }}
                         })
                         .collect(),
                     Fields::Unnamed(FieldsUnnamed { unnamed, .. }) if unnamed.len() == 1 => v
                         .bindings()
                         .iter()
-                        .map(|i| quote!(crate::WriteUrlParams::ser(#i, w)?;))
+                        .map(|i| quote!(::wiki::macro_support::WriteUrlParams::ser(#i, w)?;))
                         .collect(),
                     Fields::Unnamed(FieldsUnnamed { unnamed, .. }) => syn::Error::new_spanned(
                         unnamed,
@@ -233,8 +255,8 @@ fn derive_write_url(s: synstructure::Structure) -> syn::Result<Ts> {
                     Fields::Unit => quote!(),
                 });
                 let i = s.gen_impl(quote::quote! {
-                    gen impl crate::WriteUrlParams for @Self {
-                        fn ser<W_: crate::UrlParamWriter>(&self, w: &mut W_) -> ::std::result::Result<(), W_::E> {
+                    gen impl ::wiki::macro_support::WriteUrlParams for @Self {
+                        fn ser<W_: ::wiki::macro_support::UrlParamWriter>(&self, w: &mut W_) -> ::std::result::Result<(), W_::E> {
                             match *self { #body }
                             Ok(())
                         }

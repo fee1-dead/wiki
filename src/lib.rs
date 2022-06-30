@@ -1,183 +1,21 @@
-use std::borrow::Cow;
-use std::convert::Infallible;
-use std::num::{NonZeroU16, NonZeroU32, NonZeroU64, NonZeroUsize};
-use std::ops::Deref;
 use std::sync::Arc;
 
-use req::{encode_multivalue, HasValue};
+use jobs::JobQueue;
 use reqwest::header::{HeaderMap, HeaderValue};
 use reqwest::{Client, Url};
 use serde::Deserialize;
+use tokio::sync::Mutex;
+use tokio::time::Interval;
+
+extern crate self as wiki;
 
 pub mod api;
+mod boring_impls;
 pub mod gen;
+pub mod jobs;
+pub mod macro_support;
 pub mod req;
-
-pub trait WriteUrlParams {
-    fn ser<W: UrlParamWriter>(&self, w: &mut W) -> Result<(), W::E>;
-}
-
-pub trait WriteUrlValue {
-    fn ser<W: UrlParamWriter>(&self, w: BufferedName<'_, W>) -> Result<(), W::E>;
-    fn ser_additional_only<W: UrlParamWriter>(&self, _w: &mut W) -> Result<(), W::E> {
-        Ok(())
-    }
-}
-
-pub struct BufferedName<'a, T: ?Sized> {
-    s: &'a mut T,
-    name: TriStr<'a>,
-}
-
-impl<'a, T: UrlParamWriter> BufferedName<'a, T> {
-    pub fn write(self, value: TriStr<'_>) -> Result<&'a mut T, T::E> {
-        self.s.add(self.name, value)?;
-        Ok(self.s)
-    }
-}
-
-pub enum TriStr<'a> {
-    Shared(&'a str),
-    Owned(String),
-    Static(&'static str),
-}
-
-impl Deref for TriStr<'_> {
-    type Target = str;
-    fn deref(&self) -> &Self::Target {
-        match self {
-            Self::Owned(s) => s,
-            Self::Static(s) => s,
-            Self::Shared(s) => s,
-        }
-    }
-}
-
-impl From<TriStr<'_>> for Cow<'static, str> {
-    fn from(s: TriStr<'_>) -> Self {
-        match s {
-            TriStr::Shared(s) => Self::Owned(s.to_owned()),
-            TriStr::Owned(s) => Self::Owned(s),
-            TriStr::Static(s) => Self::Borrowed(s),
-        }
-    }
-}
-
-pub trait UrlParamWriter {
-    type E;
-    fn add(&mut self, name: TriStr<'_>, value: TriStr<'_>) -> Result<(), Self::E>;
-    fn fork<'a>(&'a mut self, name: TriStr<'a>) -> BufferedName<'a, Self> {
-        BufferedName { s: self, name }
-    }
-}
-
-pub trait NamedEnum {
-    fn variant_name(&self) -> &'static str;
-}
-
-#[derive(Default)]
-pub struct Simple(pub String);
-
-impl UrlParamWriter for Simple {
-    type E = Infallible;
-    fn add(&mut self, name: TriStr<'_>, value: TriStr<'_>) -> Result<(), Self::E> {
-        if !self.0.is_empty() {
-            self.0.push('&');
-        }
-        self.0.push_str(&urlencoding::encode(&*name));
-        self.0.push('=');
-        self.0.push_str(&urlencoding::encode(&*value));
-        Ok(())
-    }
-}
-
-impl UrlParamWriter for reqwest::multipart::Form {
-    type E = Infallible;
-    fn add(&mut self, name: TriStr<'_>, value: TriStr<'_>) -> Result<(), Self::E> {
-        *self = std::mem::take(self).text(name, value);
-        Ok(())
-    }
-}
-
-pub struct SerdeAdaptor<T>(pub T);
-
-impl<T: serde::ser::SerializeSeq> UrlParamWriter for SerdeAdaptor<T> {
-    type E = T::Error;
-    fn add(&mut self, name: TriStr<'_>, value: TriStr<'_>) -> Result<(), T::Error> {
-        self.0.serialize_element(&(&*name, &*value))
-    }
-}
-
-macro_rules! display_impls {
-    ($($ty:ty),*$(,)?) => {$(
-        impl WriteUrlValue for $ty {
-            fn ser<W: UrlParamWriter>(&self, w: BufferedName<'_, W>) -> Result<(), W::E> {
-                w.write(TriStr::Owned(self.to_string()))?;
-                Ok(())
-            }
-        }
-    )*};
-}
-
-display_impls! {
-    u16,
-    u32,
-    u64,
-    usize,
-    NonZeroU16,
-    NonZeroU32,
-    NonZeroU64,
-    NonZeroUsize,
-}
-
-impl WriteUrlValue for String {
-    fn ser<W: UrlParamWriter>(&self, w: BufferedName<'_, W>) -> Result<(), W::E> {
-        w.write(TriStr::Shared(self))?;
-        Ok(())
-    }
-}
-
-impl<T: WriteUrlValue> WriteUrlValue for Option<T> {
-    fn ser<W: UrlParamWriter>(&self, w: BufferedName<'_, W>) -> Result<(), W::E> {
-        if let Some(this) = self {
-            this.ser(w)?;
-        }
-        Ok(())
-    }
-    fn ser_additional_only<W: UrlParamWriter>(&self, w: &mut W) -> Result<(), W::E> {
-        if let Some(this) = self {
-            this.ser_additional_only(w)?;
-        }
-        Ok(())
-    }
-}
-
-impl WriteUrlValue for bool {
-    fn ser<W: UrlParamWriter>(&self, w: BufferedName<'_, W>) -> Result<(), W::E> {
-        if *self {
-            w.write(TriStr::Static(""))?;
-        }
-        Ok(())
-    }
-}
-
-impl<T: WriteUrlValue + HasValue> WriteUrlValue for Vec<T> {
-    fn ser<W: UrlParamWriter>(&self, w: BufferedName<'_, W>) -> Result<(), W::E> {
-        if self.is_empty() {
-            return Ok(());
-        }
-        let s = encode_multivalue(self);
-        let w = w.write(TriStr::Owned(s))?;
-        self.ser_additional_only(w)
-    }
-
-    fn ser_additional_only<W: UrlParamWriter>(&self, w: &mut W) -> Result<(), W::E> {
-        for v in self {
-            v.ser_additional_only(w)?;
-        }
-        Ok(())
-    }
-}
+pub mod url;
 
 #[derive(Debug)]
 pub struct Site {
@@ -192,8 +30,8 @@ pub struct QueryResponse<Q> {
 
 pub struct Page {
     content: String,
-    id: usize,
-    latest_revision: usize,
+    id: u32,
+    latest_revision: u32,
     changed: bool,
     bot: Option<Bot>,
 }
@@ -208,24 +46,31 @@ impl Page {
 #[derive(thiserror::Error, Debug)]
 pub enum Error {
     #[error(transparent)]
-    InvalidUrl(#[from] url::ParseError),
+    InvalidUrl(#[from] ::url::ParseError),
     #[error(transparent)]
     Request(#[from] reqwest::Error),
+    #[error(transparent)]
+    SerdeJson(#[from] serde_json::Error),
+    #[error("MediaWiki API returned error: {0}")]
+    MediaWiki(serde_json::Value),
 }
 
 pub type Result<T, E = Error> = std::result::Result<T, E>;
 
 // BotInn TM
 pub struct BotInn {
-    site: Site,
+    url: Url,
     #[allow(unused)]
     pass: BotPassword,
+    control: Mutex<Interval>,
 }
 
 /// A bot that is logged in.
 #[derive(Clone)]
 pub struct Bot {
     inn: Arc<BotInn>,
+    queue: JobQueue,
+    client: Client,
 }
 
 #[derive(Clone)]
