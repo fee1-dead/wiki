@@ -1,7 +1,7 @@
 use std::time::{Duration, Instant};
 
 use futures_util::StreamExt;
-use wiki::gen::SearchGenerator;
+use wiki::gen::{SearchGenerator, WikiGenerator};
 use wiki::jobs::{create_server, JobRunner};
 use wiki::{BotPassword, Site};
 
