@@ -4,6 +4,8 @@ use web_sys::HtmlInputElement;
 use wiki::Site;
 use yew::prelude::*;
 
+
+
 #[function_component(App)]
 fn app() -> Html {
     let window = web_sys::window().unwrap();

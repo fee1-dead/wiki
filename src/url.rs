@@ -1,4 +1,4 @@
-use std::convert::Infallible;
+use std::{convert::Infallible, ops::{BitAnd, BitOr, BitOrAssign}};
 
 use crate::req;
 
@@ -40,8 +40,10 @@ impl<'a, T: UrlParamWriter> BufferedName<'a, T> {
     }
 }
 
-pub trait NamedEnum {
+pub trait ApiEnum {
+    type Bitflag: Copy + BitAnd + BitOr + BitOrAssign + Default;
     fn variant_name(&self) -> &'static str;
+    fn flag(&self) -> Self::Bitflag;
 }
 
 #[derive(Default)]

@@ -21,6 +21,7 @@ wikiproc = { path = "./wikiproc" }
 bytemuck = { version = "1", features = ["derive"] }
 urlencoding = "2"
 futures-util = "0.3.21"
+pin-project = "1.0.10"
 
 [features]
 default = ["reqwest/cookies", "tokio"]

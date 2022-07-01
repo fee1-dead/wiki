@@ -1,7 +1,7 @@
 use proc_macro2::{Span, TokenStream as Ts};
 use quote::quote;
 use syn::spanned::Spanned;
-use syn::{Data, Fields, FieldsUnnamed, Lit, Meta, MetaNameValue, NestedMeta};
+use syn::{Data, Fields, FieldsUnnamed, Lit, Meta, MetaNameValue, NestedMeta, LitInt};
 use synstructure::VariantInfo;
 
 synstructure::decl_derive!([WriteUrl, attributes(wikiproc)] => derive_write_url);
@@ -209,10 +209,23 @@ fn derive_write_url(s: synstructure::Structure) -> syn::Result<Ts> {
             if opts.named.unwrap_or(true) {
                 let body = s.each_variant(|v| gen_fields(v, &opts));
                 let vnames = s.each_variant(variant_name);
+                let ty = match s.variants().len() {
+                    0..=8 => quote!(u8),
+                    9..=16 => quote!(u16),
+                    17..=32 => quote!(u32),
+                    33..=64 => quote!(u64),
+                    _ => panic!("too many variants"),
+                };
+                let mut i: u64 = 1;
+                let vnums = s.each_variant(|_| {
+                    let n = i;
+                    i = i << 1;
+                    LitInt::new(&format!("{n}"), Span::mixed_site())
+                });
                 let a = s.gen_impl(quote! {
                     gen impl ::wiki::macro_support::WriteUrlValue for @Self {
                         fn ser<W_: ::wiki::macro_support::UrlParamWriter>(&self, w: ::wiki::macro_support::BufferedName<'_, W_>) -> ::std::result::Result<(), W_::E> {
-                            let w = w.write(::wiki::macro_support::TriStr::Static(::wiki::macro_support::NamedEnum::variant_name(self)))?;
+                            let w = w.write(::wiki::macro_support::TriStr::Static(::wiki::macro_support::ApiEnum::variant_name(self)))?;
                             self.ser_additional_only(w)
                         }
                         fn ser_additional_only<W_: ::wiki::macro_support::UrlParamWriter>(&self, w: &mut W_) -> ::std::result::Result<(), W_::E> {
@@ -222,9 +235,13 @@ fn derive_write_url(s: synstructure::Structure) -> syn::Result<Ts> {
                     }
                 });
                 let b = s.gen_impl(quote! {
-                    gen impl ::wiki::macro_support::NamedEnum for @Self {
+                    gen impl ::wiki::macro_support::ApiEnum for @Self {
+                        type Bitflag = #ty;
                         fn variant_name(&self) -> &'static str {
                             match *self { #vnames }
+                        }
+                        fn flag(&self) -> Self::Bitflag {
+                            match *self { #vnums }
                         }
                     }
                 });

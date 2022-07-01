@@ -10,6 +10,10 @@ async fn main() -> wiki::Result<()> {
     main_().await
 }
 
+
+
+
+
 async fn main_() -> wiki::Result<()> {
     let site = Site::testwiki();
     let (bot, runner) = site
@@ -24,7 +28,7 @@ async fn main_() -> wiki::Result<()> {
     let gen = SearchGenerator::new(bot, r"test".into());
     let s = gen.into_stream();
     let c = s.count().await;
-    dbg!(c);
+    //dbg!(c);
     dbg!(i.elapsed());
     Ok(())
 }

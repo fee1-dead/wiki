@@ -9,7 +9,7 @@ use serde::ser::SerializeSeq;
 use wikiproc::WriteUrl;
 
 use crate::macro_support::{
-    BufferedName, NamedEnum, UrlParamWriter, WriteUrlParams, WriteUrlValue, TriStr,
+    BufferedName, ApiEnum, UrlParamWriter, WriteUrlParams, WriteUrlValue, TriStr,
 };
 use crate::url::SerdeAdaptor;
 
@@ -71,29 +71,34 @@ impl WriteUrlValue for Limit {
 }
 
 // TODO more efficient
-pub struct EnumSet<T> {
-    set: HashSet<VariantBased<T>>,
+pub struct EnumSet<T: ApiEnum> {
+    flag: T::Bitflag,
+    values: Vec<T>,
 }
 
-impl<T> EnumSet<T> {
+impl<T: ApiEnum> EnumSet<T> {
     pub fn new() -> Self {
         Self {
-            set: HashSet::new(),
+            flag: Default::default(),
+            values: Vec::new(),
         }
     }
 
     pub fn new_one(x: T) -> Self {
-        let mut this = Self::new();
-        this.insert(x);
-        this
+        Self { flag: x.flag(), values: vec![x] }
     }
 
     pub fn insert(&mut self, x: T) -> bool {
-        self.set.insert(VariantBased(x))
+        if self.flag & x.flag() != Default::default() {
+            return false;
+        }
+        self.flag = self.flag | x.flag();
+        self.values.push(x);
+        true
     }
 }
 
-impl<T> Default for EnumSet<T> {
+impl<T: ApiEnum> Default for EnumSet<T> {
     fn default() -> Self {
         Self::new()
     }
@@ -104,10 +109,10 @@ pub trait HasValue {
     fn value<F: FnOnce(&str) -> R, R>(&self, accept: F) -> R;
 }
 
-impl<T: NamedEnum> HasValue for VariantBased<T> {
+impl<T: ApiEnum> HasValue for T {
     const CAUTIOUS: bool = false;
     fn value<F: FnOnce(&str) -> R, R>(&self, accept: F) -> R {
-        accept(self.0.variant_name())
+        accept(self.variant_name())
     }
 }
 
@@ -151,53 +156,47 @@ pub fn encode_multivalue<'a, T: HasValue + 'a, V: IntoIterator<Item = &'a T> + C
     s
 }
 
-impl<T: NamedEnum + WriteUrlValue> WriteUrlValue for EnumSet<T> {
+impl<T: ApiEnum + WriteUrlValue> WriteUrlValue for EnumSet<T> {
     fn ser<W: UrlParamWriter>(&self, w: BufferedName<'_, W>) -> crate::Result<(), W::E> {
-        let s = encode_multivalue(&self.set);
+        let s = encode_multivalue(&self.values);
         let w = w.write(s.into())?;
         self.ser_additional_only(w)
     }
     fn ser_additional_only<W: UrlParamWriter>(&self, w: &mut W) -> crate::Result<(), W::E> {
-        for v in &self.set {
+        for v in &self.values {
             v.0.ser_additional_only(w)?;
         }
         Ok(())
     }
 }
 
-impl<T> FromIterator<T> for EnumSet<T> {
+impl<T: ApiEnum> FromIterator<T> for EnumSet<T> {
     fn from_iter<I: IntoIterator<Item = T>>(iter: I) -> Self {
-        let set = iter.into_iter().map(VariantBased).collect();
-        Self { set }
+        let mut flag = Default::default();
+        let values = iter.into_iter().inspect(|x| flag |= x.flag()).collect();
+        Self { flag, values }
     }
 }
 
-impl<'a, T: Clone + 'static> FromIterator<&'a T> for EnumSet<T> {
-    fn from_iter<I: IntoIterator<Item = &'a T>>(iter: I) -> Self {
-        let set = iter.into_iter().cloned().map(VariantBased).collect();
-        Self { set }
-    }
-}
-
-impl<'a, T: Clone + 'static> From<&'a [T]> for EnumSet<T> {
+impl<'a, T: ApiEnum + Clone + 'static> From<&'a [T]> for EnumSet<T> {
     fn from(x: &'a [T]) -> Self {
-        x.iter().collect()
+        x.iter().cloned().collect()
     }
 }
 
-impl<'a, T> From<T> for EnumSet<T> {
+impl<'a, T: ApiEnum> From<T> for EnumSet<T> {
     fn from(x: T) -> Self {
         Self::new_one(x)
     }
 }
 
-impl<'a, T, const LEN: usize> From<[T; LEN]> for EnumSet<T> {
+impl<'a, T: ApiEnum, const LEN: usize> From<[T; LEN]> for EnumSet<T> {
     fn from(arr: [T; LEN]) -> Self {
-        let mut this = Self::new();
-        for x in arr {
-            this.insert(x);
+        let mut flag = Default::default();
+        for x in &arr {
+            flag |= x.flag();
         }
-        this
+        Self { flag, values: arr.into() }
     }
 }
 
