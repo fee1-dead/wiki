@@ -22,6 +22,7 @@ pub trait WriteUrlParams {
 
 pub trait WriteUrlValue {
     fn ser<W: UrlParamWriter>(&self, w: BufferedName<'_, W>) -> Result<(), W::E>;
+    /// only write the extra values, excluding names.
     fn ser_additional_only<W: UrlParamWriter>(&self, _w: &mut W) -> Result<(), W::E> {
         Ok(())
     }
@@ -45,6 +46,19 @@ pub trait NamedEnum {
 
 #[derive(Default)]
 pub struct Simple(pub String);
+
+impl Simple {
+    pub fn add_serde<T: serde::Serialize>(&mut self, x: T) -> Result<(), serde_urlencoded::ser::Error> {
+        let s = serde_urlencoded::to_string(x)?;
+        if !s.is_empty() {
+            if !self.0.is_empty() {
+                self.0.push('&');
+            }
+            self.0.push_str(&s);
+        }
+        Ok(())
+    }
+}
 
 impl UrlParamWriter for Simple {
     type E = Infallible;

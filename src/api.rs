@@ -5,19 +5,58 @@ use std::pin::Pin;
 use std::sync::Arc;
 use std::time::Duration;
 
-use reqwest::{Url, Client, Response};
+use reqwest::{Client, Response, Url};
 use serde::de::DeserializeOwned;
 use serde::Deserialize;
 use serde_json::Value;
 use tokio::sync::{Mutex, MutexGuard};
 use tokio::time::{interval, Interval, MissedTickBehavior};
 
-use crate::jobs::{JobQueue, create_server, JobRunner};
+use crate::jobs::{create_server, JobQueue, JobRunner};
 use crate::req::{
-    self, Login, Main, PageSpec, QueryProp, QueryPropRevisions, RvProp, RvSlot, TokenType, QueryMeta, MetaUserInfo, UserInfoProp,
+    self, Login, Main, MetaUserInfo, PageSpec, QueryMeta, QueryProp, QueryPropRevisions, RvProp,
+    RvSlot, TokenType, UserInfoProp,
 };
 use crate::url::WriteUrlParams;
 use crate::{BotPassword, Result};
+
+macro_rules! basic {
+    (@handle( $i:ident { $name:ident: $ty:ty } )) => {
+        #[derive(Deserialize, Debug)]
+        pub struct $i {
+            pub $name: $ty,
+        }
+    };
+    (@handle( $i:ident { $name:ident } )) => {
+        #[derive(Deserialize, Debug)]
+        pub struct $i<__Inner> {
+            pub $name: __Inner,
+        }
+    };
+    (@handle( $i:ident { $T:ident => $name:ident : $($rest:tt)* } )) => {
+        #[derive(Deserialize, Debug)]
+        pub struct $i<$T> {
+            pub $name: $($rest)*,
+        }
+    };
+    ($($ty:ident { $($tt:tt)* })*) => {
+        $(basic!(@handle($ty { $($tt)* }));)*
+    };
+}
+
+basic! {
+    SlotsMain { main: Slot }
+    Query { query }
+    Search { T => search: Vec<T> }
+}
+
+#[derive(Deserialize, PartialEq, Eq, Debug)]
+pub struct BasicSearchResult {
+    pub ns: u8,
+    pub title: String,
+    #[serde(rename = "pageid")]
+    pub page_id: usize,
+}
 
 #[derive(Deserialize, Debug)]
 pub struct Slot {
@@ -30,11 +69,6 @@ pub struct Slot {
 }
 
 #[derive(Deserialize, Debug)]
-pub struct SlotsMain {
-    pub main: Slot,
-}
-
-#[derive(Deserialize, Debug)]
 pub struct Revision<S> {
     #[serde(rename = "revid")]
     pub rev_id: u32,
@@ -44,8 +78,11 @@ pub struct Revision<S> {
 }
 
 #[derive(Deserialize, Debug)]
-pub struct Query<Q> {
-    pub query: Q,
+pub struct MaybeContinue<T> {
+    #[serde(rename = "continue", default)]
+    pub cont: Option<Value>,
+    #[serde(flatten)]
+    pub inner: T,
 }
 
 #[derive(Deserialize, Debug)]
@@ -133,9 +170,27 @@ pub fn mkurl(mut url: Url, m: Main) -> Url {
     url
 }
 
+pub fn mkurl_with_ext(mut url: Url, m: Main, ext: Value) -> Result<Url, serde_urlencoded::ser::Error> {
+    let mut q = crate::url::Simple::default();
+    if let Err(e) = m.ser(&mut q) {
+        match e {}
+    }
+    q.add_serde(ext)?;
+    url.set_query(Some(&q.0));
+    println!("{url}"); // TODO remove
+    Ok(url)
+}
+
 pub trait RequestBuilderExt: Sized {
-    fn send_and_report_err(self) -> Pin<Box<dyn Future<Output = crate::Result<Value>> + Send + Sync>>;
-    fn send_parse<D: DeserializeOwned>(self) -> Pin<Box<dyn Future<Output = crate::Result<D>> + Send + Sync>> where Self: Send + Sync + 'static {
+    fn send_and_report_err(
+        self,
+    ) -> Pin<Box<dyn Future<Output = crate::Result<Value>> + Send + Sync>>;
+    fn send_parse<D: DeserializeOwned>(
+        self,
+    ) -> Pin<Box<dyn Future<Output = crate::Result<D>> + Send + Sync>>
+    where
+        Self: Send + Sync + 'static,
+    {
         Box::pin(async move {
             let v = self.send_and_report_err().await?;
             Ok(serde_json::from_value(v)?)
@@ -144,7 +199,9 @@ pub trait RequestBuilderExt: Sized {
 }
 
 impl RequestBuilderExt for reqwest::RequestBuilder {
-    fn send_and_report_err(self) -> Pin<Box<dyn Future<Output = crate::Result<Value>> + Send + Sync>> {
+    fn send_and_report_err(
+        self,
+    ) -> Pin<Box<dyn Future<Output = crate::Result<Value>> + Send + Sync>> {
         Box::pin(async {
             let r = self.send().await?;
             let mut v = r.json::<Value>().await?;
@@ -163,7 +220,7 @@ pub async fn fetch(client: &Client, url: Url, spec: PageSpec) -> Result<crate::P
             QueryProp::Revisions(QueryPropRevisions {
                 prop: [RvProp::Ids, RvProp::Content].into(),
                 slots: [RvSlot::Main].into(),
-                limit: NonZeroU16::new(1),
+                limit: req::Limit::Value(1),
             })
             .into(),
         ),
@@ -204,9 +261,18 @@ pub async fn get_tokens<T: Token>(url: Url, client: &Client) -> Result<T> {
     Ok(tokens.query.tokens)
 }
 
-#[derive(Clone)]
 pub struct BotOptions {
     highlimits: bool,
+}
+
+impl BotOptions {
+    pub fn max_limit(&self) -> usize {
+        if self.highlimits {
+            5000
+        } else {
+            500
+        }
+    }
 }
 
 impl crate::Site {
@@ -228,7 +294,6 @@ impl crate::Site {
         password: BotPassword,
         editdelay: Duration,
     ) -> Result<(crate::Bot, JobRunner), (Self, crate::Error)> {
-        
         async fn login_(
             this: &crate::Site,
             BotPassword { username, password }: BotPassword,
@@ -247,13 +312,25 @@ impl crate::Site {
                 .map_or(false, |v| v == "Success")
             {
                 let url = this.mkurl(Main::query(req::Query {
-                    meta: Some(QueryMeta::UserInfo(MetaUserInfo { prop: UserInfoProp::Rights.into() }).into()),
+                    meta: Some(
+                        QueryMeta::UserInfo(MetaUserInfo {
+                            prop: UserInfoProp::Rights.into(),
+                        })
+                        .into(),
+                    ),
                     ..Default::default()
                 }));
-                let res: Query<UserInfo<UserInfoRights>> = this.client.get(url).send_parse().await?;
+                let res: Query<UserInfo<UserInfoRights>> =
+                    this.client.get(url).send_parse().await?;
 
                 Ok(BotOptions {
-                    highlimits: res.query.userinfo.extra.rights.iter().any(|s| s == "apihighlimits"),
+                    highlimits: res
+                        .query
+                        .userinfo
+                        .extra
+                        .rights
+                        .iter()
+                        .any(|s| s == "apihighlimits"),
                 })
             } else {
                 panic!("Vandalism detected. Your actions will be logged at [[WP:LTA/BotAbuser]]")
@@ -262,20 +339,23 @@ impl crate::Site {
         let res = login_(&self, password.clone()).await;
         let mut interval = interval(editdelay);
         interval.set_missed_tick_behavior(MissedTickBehavior::Delay);
-        
+
         match res {
             Ok(options) => {
                 let (queue, r) = create_server(self.client.clone());
-                Ok((crate::Bot {
-                    inn: Arc::new(crate::BotInn {
-                        pass: password,
-                        control: Mutex::new(interval),
-                        url: self.url,
-                    }),
-                    queue,
-                    client: self.client,
-                    options,
-                }, r))
+                Ok((
+                    crate::Bot {
+                        inn: Arc::new(crate::BotInn {
+                            pass: password,
+                            control: Mutex::new(interval),
+                            url: self.url,
+                            options,
+                        }),
+                        queue,
+                        client: self.client,
+                    },
+                    r,
+                ))
             }
             Err(e) => Err((self, e)),
         }
@@ -284,10 +364,12 @@ impl crate::Site {
 
 impl crate::Bot {
     pub async fn fetch(&self, spec: PageSpec) -> Result<crate::Page> {
-        fetch(&self.client, self.inn.url.clone(), spec).await.map(|p| crate::Page {
-            bot: Some(self.clone()),
-            ..p
-        })
+        fetch(&self.client, self.inn.url.clone(), spec)
+            .await
+            .map(|p| crate::Page {
+                bot: Some(self.clone()),
+                ..p
+            })
     }
 
     pub async fn control(&self) -> MutexGuard<'_, Interval> {
@@ -296,6 +378,14 @@ impl crate::Bot {
 
     pub fn mkurl(&self, m: Main) -> Url {
         mkurl(self.inn.url.clone(), m)
+    }
+
+    pub fn mkurl_with_ext(&self, m: Main, ext: Value) -> Result<Url, serde_urlencoded::ser::Error> {
+        mkurl_with_ext(self.inn.url.clone(), m, ext)
+    }
+
+    pub fn options(&self) -> &BotOptions {
+        &self.inn.options
     }
 }
 
@@ -316,14 +406,7 @@ impl crate::Page {
                 token: t.token,
             });
             let f = m.build_form();
-            let res = bot
-                .client
-                .post(u)
-                .multipart(f)
-                .send()
-                .await?
-                .text()
-                .await?;
+            let res = bot.client.post(u).multipart(f).send().await?.text().await?;
             dbg!(res);
 
             bot.control().await.tick().await;

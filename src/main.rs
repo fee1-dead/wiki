@@ -1,6 +1,9 @@
-use std::time::Duration;
+use std::time::{Duration, Instant};
 
-use wiki::{BotPassword, Site, jobs::{JobRunner, create_server}};
+use futures_util::StreamExt;
+use wiki::gen::SearchGenerator;
+use wiki::jobs::{create_server, JobRunner};
+use wiki::{BotPassword, Site};
 
 #[tokio::main]
 async fn main() -> wiki::Result<()> {
@@ -17,13 +20,11 @@ async fn main_() -> wiki::Result<()> {
         .await
         .unwrap();
     tokio::spawn(runner.run());
-    let mut page = bot.fetch("User talk:0xDeadbeef".into()).await?;
-    for i in 0..10 {
-        page.content_mut().push_str("\nTestingtestingtesting");
-        page.save(&format!("Testing API ({i})")).await?;
-        eprintln!("Edited");
-        page.refetch().await?;
-    }
-
+    let i = Instant::now();
+    let gen = SearchGenerator::new(bot, r"test".into());
+    let s = gen.into_stream();
+    let c = s.count().await;
+    dbg!(c);
+    dbg!(i.elapsed());
     Ok(())
 }

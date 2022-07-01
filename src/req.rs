@@ -9,7 +9,7 @@ use serde::ser::SerializeSeq;
 use wikiproc::WriteUrl;
 
 use crate::macro_support::{
-    BufferedName, NamedEnum, UrlParamWriter, WriteUrlParams, WriteUrlValue,
+    BufferedName, NamedEnum, UrlParamWriter, WriteUrlParams, WriteUrlValue, TriStr,
 };
 use crate::url::SerdeAdaptor;
 
@@ -49,6 +49,24 @@ impl<T> Eq for VariantBased<T> {}
 impl<T: Debug> Debug for VariantBased<T> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         self.0.fmt(f)
+    }
+}
+
+#[derive(Clone, Copy, Debug)]
+pub enum Limit {
+    Max,
+    Value(usize),
+    None,
+}
+
+impl WriteUrlValue for Limit {
+    fn ser<W: UrlParamWriter>(&self, w: BufferedName<'_, W>) -> Result<(), W::E> {
+        match self {
+            Limit::Max => { w.write(TriStr::Static("max"))?; }
+            Limit::Value(v) => v.ser(w)?,
+            Limit::None => {}
+        }
+        Ok(())
     }
 }
 
@@ -245,8 +263,42 @@ pub struct Query {
 
 #[derive(WriteUrl)]
 pub enum QueryList {
-    Search { srsearch: String },
-    CategoryMembers {},
+    Search(ListSearch),
+    RecentChanges(ListRc),
+}
+
+#[derive(WriteUrl)]
+#[wikiproc(prepend_all = "sr")]
+pub struct ListSearch {
+    pub search: String,
+    pub limit: Limit,
+    pub prop: Option<EnumSet<SearchProp>>,
+}
+
+#[derive(WriteUrl)]
+pub enum SearchProp {
+
+}
+
+#[derive(WriteUrl)]
+#[wikiproc(prepend_all = "rc")]
+pub struct ListRc {
+    pub limit: Limit,
+    pub ty: RcType,
+}
+
+#[derive(WriteUrl)]
+pub enum RcProp {
+    Title,
+    Timestamp,
+    Ids,
+    Comment,
+    User
+}
+
+#[derive(WriteUrl)]
+pub enum RcType {
+    
 }
 
 #[derive(WriteUrl)]
@@ -279,7 +331,7 @@ pub enum QueryProp {
 pub struct QueryPropRevisions {
     pub prop: EnumSet<RvProp>,
     pub slots: EnumSet<RvSlot>,
-    pub limit: Option<NonZeroU16>,
+    pub limit: Limit,
 }
 
 #[derive(WriteUrl)]
@@ -291,7 +343,7 @@ pub enum QueryGenerator {
 #[wikiproc(prepend_all = "gsr")]
 pub struct SearchGenerator {
     pub search: String,
-    pub limit: u32,
+    pub limit: Limit,
     pub offset: Option<NonZeroU32>,
 }
 

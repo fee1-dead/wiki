@@ -1,6 +1,6 @@
 use std::sync::Arc;
 
-use tokio::sync::mpsc::{Receiver, Sender, channel};
+use tokio::sync::mpsc::{channel, Receiver, Sender};
 
 pub struct Job(pub reqwest::Request);
 
@@ -16,12 +16,7 @@ pub struct JobRunner {
 
 pub fn create_server(client: reqwest::Client) -> (JobQueue, JobRunner) {
     let (send, recv) = channel(100);
-    (JobQueue {
-        send,
-    }, JobRunner {
-        recv,
-        client,
-    })
+    (JobQueue { send }, JobRunner { recv, client })
 }
 
 impl JobRunner {
@@ -31,7 +26,5 @@ impl JobRunner {
         }
     }
 
-    pub async fn process(&mut self, job: Job) {
-        
-    }
+    pub async fn process(&mut self, job: Job) {}
 }

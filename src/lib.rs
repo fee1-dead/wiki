@@ -52,6 +52,8 @@ pub enum Error {
     Request(#[from] reqwest::Error),
     #[error(transparent)]
     SerdeJson(#[from] serde_json::Error),
+    #[error(transparent)]
+    SerdeUrlEncoded(#[from] serde_urlencoded::ser::Error),
     #[error("MediaWiki API returned error: {0}")]
     MediaWiki(serde_json::Value),
 }
@@ -64,6 +66,7 @@ pub struct BotInn {
     #[allow(unused)]
     pass: BotPassword,
     control: Mutex<Interval>,
+    options: BotOptions,
 }
 
 /// A bot that is logged in.
@@ -72,7 +75,6 @@ pub struct Bot {
     inn: Arc<BotInn>,
     queue: JobQueue,
     client: Client,
-    options: BotOptions,
 }
 
 #[derive(Clone)]
