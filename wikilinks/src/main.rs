@@ -4,12 +4,10 @@ use web_sys::HtmlInputElement;
 use wiki::Site;
 use yew::prelude::*;
 
-
-
 #[function_component(App)]
 fn app() -> Html {
     let window = web_sys::window().unwrap();
-    let res = use_state(|| String::new());
+    let res = use_state(String::new);
     let timeout = use_state(|| -1);
     let input_ref = use_node_ref();
     let site = Site::enwiki();

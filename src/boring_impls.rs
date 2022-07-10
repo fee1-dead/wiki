@@ -60,6 +60,7 @@ macro_rules! display_impls {
 }
 
 display_impls! {
+    u8,
     u16,
     u32,
     u64,

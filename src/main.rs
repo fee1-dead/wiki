@@ -1,8 +1,8 @@
-use std::time::{Duration, Instant};
+use std::time::Duration;
 
-use futures_util::StreamExt;
-use wiki::gen::{SearchGenerator, WikiGenerator};
-use wiki::jobs::{create_server, JobRunner};
+use futures_util::{StreamExt, TryStreamExt};
+use wiki::generators::rcpatrol::RecentChangesPatroller;
+use wiki::req::rc::{RcProp, RcType};
 use wiki::{BotPassword, Site};
 
 #[tokio::main]
@@ -10,25 +10,28 @@ async fn main() -> wiki::Result<()> {
     main_().await
 }
 
-
-
-
-
 async fn main_() -> wiki::Result<()> {
-    let site = Site::testwiki();
+    let site = Site::enwiki();
     let (bot, runner) = site
         .login(
-            BotPassword::new("0xDeadbeef@Testing", include_str!("../verysecret")),
+            BotPassword::new("ScannerBot@RustWiki", include_str!("../veryverysecret")), // BotPassword::new("0xDeadbeef@Testing", include_str!("../verysecret")),
             Duration::from_secs(5),
         )
         .await
-        .unwrap();
+        .map_err(|(_, e)| e)?;
     tokio::spawn(runner.run());
-    let i = Instant::now();
-    let gen = SearchGenerator::new(bot, r"test".into());
-    let s = gen.into_stream();
-    let c = s.count().await;
-    //dbg!(c);
-    dbg!(i.elapsed());
+    let rcp = RecentChangesPatroller::new(
+        bot,
+        Duration::from_secs(2),
+        RcProp::ORES_SCORES | RcProp::TAGS | RcProp::TITLE | RcProp::TIMESTAMP,
+        RcType::EDIT,
+    );
+    tokio::spawn(async move {
+        rcp.try_for_each_concurrent(None, |x| async move {
+            println!("{:?}", x.oresscores);
+            Ok(())
+        }).await
+    });
+    tokio::time::sleep(Duration::from_secs(100)).await;
     Ok(())
 }

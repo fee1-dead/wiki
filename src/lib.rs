@@ -12,10 +12,11 @@ extern crate self as wiki;
 
 pub mod api;
 mod boring_impls;
-pub mod gen;
+pub mod generators;
 pub mod jobs;
 pub mod macro_support;
 pub mod req;
+pub mod types;
 pub mod url;
 
 #[derive(Debug)]
@@ -104,14 +105,12 @@ impl Site {
         let url: Url = api_url.parse()?;
         assert!(url.query().is_none());
         let mut client = Client::builder();
-        client = client;
         #[cfg(feature = "default")]
         {
             client = client.cookie_store(true).user_agent(UA);
         }
         let client = client.build()?;
         let mut headers = HeaderMap::new();
-        headers = headers;
         headers.insert("Api-User-Agent", HeaderValue::from_static(UA));
 
         Ok(Site { client, url })

@@ -1,4 +1,5 @@
-use std::{convert::Infallible, ops::{BitAnd, BitOr, BitOrAssign}};
+use std::convert::Infallible;
+use std::ops::{BitAnd, BitOr, BitOrAssign};
 
 use crate::req;
 
@@ -40,9 +41,17 @@ impl<'a, T: UrlParamWriter> BufferedName<'a, T> {
     }
 }
 
-pub trait ApiEnum {
-    type Bitflag: Copy + BitAnd + BitOr + BitOrAssign + Default;
+pub trait NamedEnum {
     fn variant_name(&self) -> &'static str;
+}
+
+pub trait BitflaggedEnum {
+    type Bitflag: Copy
+        + BitAnd<Output = Self::Bitflag>
+        + BitOr<Output = Self::Bitflag>
+        + BitOrAssign
+        + Default
+        + Eq;
     fn flag(&self) -> Self::Bitflag;
 }
 
@@ -50,7 +59,10 @@ pub trait ApiEnum {
 pub struct Simple(pub String);
 
 impl Simple {
-    pub fn add_serde<T: serde::Serialize>(&mut self, x: T) -> Result<(), serde_urlencoded::ser::Error> {
+    pub fn add_serde<T: serde::Serialize>(
+        &mut self,
+        x: T,
+    ) -> Result<(), serde_urlencoded::ser::Error> {
         let s = serde_urlencoded::to_string(x)?;
         if !s.is_empty() {
             if !self.0.is_empty() {

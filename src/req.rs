@@ -9,9 +9,9 @@ use serde::ser::SerializeSeq;
 use wikiproc::WriteUrl;
 
 use crate::macro_support::{
-    BufferedName, ApiEnum, UrlParamWriter, WriteUrlParams, WriteUrlValue, TriStr,
+    BufferedName, NamedEnum, TriStr, UrlParamWriter, WriteUrlParams, WriteUrlValue,
 };
-use crate::url::SerdeAdaptor;
+use crate::url::{BitflaggedEnum, SerdeAdaptor};
 
 #[derive(TransparentWrapper)]
 #[repr(transparent)]
@@ -62,7 +62,9 @@ pub enum Limit {
 impl WriteUrlValue for Limit {
     fn ser<W: UrlParamWriter>(&self, w: BufferedName<'_, W>) -> Result<(), W::E> {
         match self {
-            Limit::Max => { w.write(TriStr::Static("max"))?; }
+            Limit::Max => {
+                w.write(TriStr::Static("max"))?;
+            }
             Limit::Value(v) => v.ser(w)?,
             Limit::None => {}
         }
@@ -71,12 +73,12 @@ impl WriteUrlValue for Limit {
 }
 
 // TODO more efficient
-pub struct EnumSet<T: ApiEnum> {
+pub struct EnumSet<T: BitflaggedEnum> {
     flag: T::Bitflag,
     values: Vec<T>,
 }
 
-impl<T: ApiEnum> EnumSet<T> {
+impl<T: BitflaggedEnum> EnumSet<T> {
     pub fn new() -> Self {
         Self {
             flag: Default::default(),
@@ -85,20 +87,23 @@ impl<T: ApiEnum> EnumSet<T> {
     }
 
     pub fn new_one(x: T) -> Self {
-        Self { flag: x.flag(), values: vec![x] }
+        Self {
+            flag: x.flag(),
+            values: vec![x],
+        }
     }
 
     pub fn insert(&mut self, x: T) -> bool {
         if self.flag & x.flag() != Default::default() {
             return false;
         }
-        self.flag = self.flag | x.flag();
+        self.flag |= x.flag();
         self.values.push(x);
         true
     }
 }
 
-impl<T: ApiEnum> Default for EnumSet<T> {
+impl<T: BitflaggedEnum> Default for EnumSet<T> {
     fn default() -> Self {
         Self::new()
     }
@@ -109,7 +114,7 @@ pub trait HasValue {
     fn value<F: FnOnce(&str) -> R, R>(&self, accept: F) -> R;
 }
 
-impl<T: ApiEnum> HasValue for T {
+impl<T: NamedEnum> HasValue for T {
     const CAUTIOUS: bool = false;
     fn value<F: FnOnce(&str) -> R, R>(&self, accept: F) -> R {
         accept(self.variant_name())
@@ -130,33 +135,57 @@ impl HasValue for u32 {
     }
 }
 
+pub struct MultiValueEncoder {
+    s: String,
+    sep: char,
+    empty: bool,
+}
+
+impl MultiValueEncoder {
+    pub fn new(use_unicode_separator: bool) -> Self {
+        Self {
+            s: if use_unicode_separator {
+                '\u{1F}'.into()
+            } else {
+                String::new()
+            },
+            sep: if use_unicode_separator { '\u{1F}' } else { '|' },
+            empty: true,
+        }
+    }
+
+    pub fn push(&mut self, s: &str) {
+        if self.empty {
+            self.empty = false;
+        } else {
+            self.s.push(self.sep);
+        }
+
+        self.s.push_str(s);
+    }
+
+    pub fn build(self) -> String {
+        self.s
+    }
+}
+
 #[must_use]
 pub fn encode_multivalue<'a, T: HasValue + 'a, V: IntoIterator<Item = &'a T> + Clone>(
     values: V,
 ) -> String {
-    let mut sep = '|';
-    let mut s = String::new();
-    if T::CAUTIOUS {
-        for item in values.clone() {
-            if item.value(|v| v.contains('|')) {
-                sep = '\u{1F}';
-                s.push(sep);
-                break;
-            }
-        }
-    }
-    for (i, item) in values.into_iter().enumerate() {
-        if i != 0 {
-            s.push(sep);
-        }
-        item.value(|v| {
-            s.push_str(v);
-        });
-    }
-    s
+    let use_unicode = T::CAUTIOUS
+        && values
+            .clone()
+            .into_iter()
+            .any(|i| i.value(|v| v.contains('|')));
+    let mut encoder = MultiValueEncoder::new(use_unicode);
+    values
+        .into_iter()
+        .for_each(|s| s.value(|s| encoder.push(s)));
+    encoder.build()
 }
 
-impl<T: ApiEnum + WriteUrlValue> WriteUrlValue for EnumSet<T> {
+impl<T: BitflaggedEnum + NamedEnum + WriteUrlValue> WriteUrlValue for EnumSet<T> {
     fn ser<W: UrlParamWriter>(&self, w: BufferedName<'_, W>) -> crate::Result<(), W::E> {
         let s = encode_multivalue(&self.values);
         let w = w.write(s.into())?;
@@ -164,13 +193,13 @@ impl<T: ApiEnum + WriteUrlValue> WriteUrlValue for EnumSet<T> {
     }
     fn ser_additional_only<W: UrlParamWriter>(&self, w: &mut W) -> crate::Result<(), W::E> {
         for v in &self.values {
-            v.0.ser_additional_only(w)?;
+            v.ser_additional_only(w)?;
         }
         Ok(())
     }
 }
 
-impl<T: ApiEnum> FromIterator<T> for EnumSet<T> {
+impl<T: BitflaggedEnum> FromIterator<T> for EnumSet<T> {
     fn from_iter<I: IntoIterator<Item = T>>(iter: I) -> Self {
         let mut flag = Default::default();
         let values = iter.into_iter().inspect(|x| flag |= x.flag()).collect();
@@ -178,25 +207,28 @@ impl<T: ApiEnum> FromIterator<T> for EnumSet<T> {
     }
 }
 
-impl<'a, T: ApiEnum + Clone + 'static> From<&'a [T]> for EnumSet<T> {
+impl<'a, T: BitflaggedEnum + Clone + 'static> From<&'a [T]> for EnumSet<T> {
     fn from(x: &'a [T]) -> Self {
         x.iter().cloned().collect()
     }
 }
 
-impl<'a, T: ApiEnum> From<T> for EnumSet<T> {
+impl<'a, T: BitflaggedEnum> From<T> for EnumSet<T> {
     fn from(x: T) -> Self {
         Self::new_one(x)
     }
 }
 
-impl<'a, T: ApiEnum, const LEN: usize> From<[T; LEN]> for EnumSet<T> {
+impl<'a, T: BitflaggedEnum, const LEN: usize> From<[T; LEN]> for EnumSet<T> {
     fn from(arr: [T; LEN]) -> Self {
         let mut flag = Default::default();
         for x in &arr {
             flag |= x.flag();
         }
-        Self { flag, values: arr.into() }
+        Self {
+            flag,
+            values: arr.into(),
+        }
     }
 }
 
@@ -225,7 +257,7 @@ impl Main {
     pub fn action(action: Action) -> Self {
         Self {
             action,
-            format: Format::Json,
+            format: Format::Json { formatversion: 2 },
         }
     }
 
@@ -263,11 +295,11 @@ pub struct Query {
 #[derive(WriteUrl)]
 pub enum QueryList {
     Search(ListSearch),
-    RecentChanges(ListRc),
+    RecentChanges(rc::ListRc),
 }
 
 #[derive(WriteUrl)]
-#[wikiproc(prepend_all = "sr")]
+#[wp(prepend_all = "sr")]
 pub struct ListSearch {
     pub search: String,
     pub limit: Limit,
@@ -275,42 +307,21 @@ pub struct ListSearch {
 }
 
 #[derive(WriteUrl)]
-pub enum SearchProp {
+pub enum SearchProp {}
 
-}
-
-#[derive(WriteUrl)]
-#[wikiproc(prepend_all = "rc")]
-pub struct ListRc {
-    pub limit: Limit,
-    pub ty: RcType,
-}
-
-#[derive(WriteUrl)]
-pub enum RcProp {
-    Title,
-    Timestamp,
-    Ids,
-    Comment,
-    User
-}
-
-#[derive(WriteUrl)]
-pub enum RcType {
-    
-}
+pub mod rc;
 
 #[derive(WriteUrl)]
 pub enum QueryMeta {
     Tokens {
-        #[wikiproc(name = "type")]
+        #[wp(name = "type")]
         type_: EnumSet<TokenType>,
     },
     UserInfo(MetaUserInfo),
 }
 
 #[derive(WriteUrl)]
-#[wikiproc(prepend_all = "ui")]
+#[wp(prepend_all = "ui")]
 pub struct MetaUserInfo {
     pub prop: EnumSet<UserInfoProp>,
 }
@@ -326,7 +337,7 @@ pub enum QueryProp {
 }
 
 #[derive(WriteUrl)]
-#[wikiproc(prepend_all = "rv")]
+#[wp(prepend_all = "rv")]
 pub struct QueryPropRevisions {
     pub prop: EnumSet<RvProp>,
     pub slots: EnumSet<RvSlot>,
@@ -339,7 +350,7 @@ pub enum QueryGenerator {
 }
 
 #[derive(WriteUrl)]
-#[wikiproc(prepend_all = "gsr")]
+#[wp(prepend_all = "gsr")]
 pub struct SearchGenerator {
     pub search: String,
     pub limit: Limit,
@@ -370,7 +381,7 @@ pub enum RvProp {
 #[derive(WriteUrl)]
 pub enum RvSlot {
     Main,
-    #[wikiproc(name = "*")]
+    #[wp(name = "*")]
     All,
 }
 
@@ -388,7 +399,7 @@ pub enum TokenType {
 }
 
 #[derive(WriteUrl)]
-#[wikiproc(unnamed)]
+#[wp(unnamed)]
 pub enum PageSpec {
     Title { title: String },
     Id { pageid: u32 },
@@ -396,7 +407,7 @@ pub enum PageSpec {
 
 #[derive(WriteUrl)]
 pub struct Edit {
-    #[wikiproc(flatten)]
+    #[wp(flatten)]
     pub spec: PageSpec,
     pub text: String,
     pub summary: String,
@@ -406,17 +417,17 @@ pub struct Edit {
 
 #[derive(WriteUrl)]
 pub struct Login {
-    #[wikiproc(name = "lgname")]
+    #[wp(name = "lgname")]
     pub name: String,
-    #[wikiproc(name = "lgpassword")]
+    #[wp(name = "lgpassword")]
     pub password: String,
-    #[wikiproc(name = "lgtoken")]
+    #[wp(name = "lgtoken")]
     pub token: String,
 }
 
 #[derive(WriteUrl)]
 pub enum Format {
-    Json,
+    Json { formatversion: u8 },
     None,
     Php,
     RawFm,
@@ -424,9 +435,9 @@ pub enum Format {
 }
 
 #[derive(WriteUrl)]
-#[wikiproc(prepend_all = "cm")]
+#[wp(prepend_all = "cm")]
 pub struct ListCategoryMembers {
-    #[wikiproc(flatten)]
+    #[wp(flatten)]
     spec: PageSpec,
     set: Option<EnumSet<CmProps>>,
 }

@@ -1,3 +1,5 @@
+pub use crate::req::MultiValueEncoder;
 pub use crate::url::{
-    BufferedName, ApiEnum, PrependAdaptor, TriStr, UrlParamWriter, WriteUrlParams, WriteUrlValue,
+    BitflaggedEnum, BufferedName, NamedEnum, PrependAdaptor, TriStr, UrlParamWriter,
+    WriteUrlParams, WriteUrlValue,
 };

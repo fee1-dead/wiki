@@ -33,9 +33,10 @@ macro_rules! basic {
             pub $name: __Inner,
         }
     };
-    (@handle( $i:ident { $T:ident => $name:ident : $($rest:tt)* } )) => {
+    (@handle( $i:ident { $T:ident => $name:ident $([$lit:literal])? : $($rest:tt)* } )) => {
         #[derive(Deserialize, Debug)]
         pub struct $i<$T> {
+            $(#[serde(rename = $lit)])?
             pub $name: $($rest)*,
         }
     };
@@ -48,14 +49,38 @@ basic! {
     SlotsMain { main: Slot }
     Query { query }
     Search { T => search: Vec<T> }
+    RecentChanges { T => recent_changes["recentchanges"]: Vec<T> }
 }
 
 #[derive(Deserialize, PartialEq, Eq, Debug)]
 pub struct BasicSearchResult {
-    pub ns: u8,
+    pub ns: u16,
     pub title: String,
     #[serde(rename = "pageid")]
     pub page_id: usize,
+}
+
+#[derive(Deserialize, Debug)]
+pub struct RecentChangesResult {
+    #[serde(rename = "type")]
+    pub type_: String,
+    pub ns: Option<u16>,
+    pub title: Option<String>,
+    pub pageid: Option<usize>,
+    pub revid: Option<usize>,
+    pub old_revid: Option<usize>,
+    pub rcid: Option<usize>,
+    pub user: Option<String>,
+    pub userid: Option<usize>,
+    pub oldlen: Option<usize>,
+    pub newlen: Option<usize>,
+    pub timestamp: Option<String>,
+    pub comment: Option<String>,
+    pub parsedcomment: Option<String>,
+    pub redirect: Option<bool>,
+    pub tags: Option<Vec<String>>,
+    pub sha1: Option<String>,
+    pub oresscores: Option<Value>, // TODO more precise
 }
 
 #[derive(Deserialize, Debug)]
@@ -64,7 +89,6 @@ pub struct Slot {
     pub content_model: String,
     #[serde(rename = "contentformat")]
     pub content_format: String,
-    #[serde(rename = "*")]
     pub content: String,
 }
 
@@ -170,7 +194,11 @@ pub fn mkurl(mut url: Url, m: Main) -> Url {
     url
 }
 
-pub fn mkurl_with_ext(mut url: Url, m: Main, ext: Value) -> Result<Url, serde_urlencoded::ser::Error> {
+pub fn mkurl_with_ext(
+    mut url: Url,
+    m: Main,
+    ext: Value,
+) -> Result<Url, serde_urlencoded::ser::Error> {
     let mut q = crate::url::Simple::default();
     if let Err(e) = m.ser(&mut q) {
         match e {}
@@ -307,6 +335,7 @@ impl crate::Site {
             });
             let form = l.build_form();
             let v: Value = req.multipart(form).send_and_report_err().await?;
+            println!("{v}");
             if v.get("login")
                 .and_then(|v| v.get("result"))
                 .map_or(false, |v| v == "Success")

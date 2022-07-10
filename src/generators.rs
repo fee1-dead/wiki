@@ -1,28 +1,38 @@
 use std::future::Future;
-use std::mem::{take, replace};
+use std::mem::{replace, take};
 use std::pin::Pin;
 use std::task::{Context, Poll};
 
 use futures_util::future::BoxFuture;
-use futures_util::{Stream, stream};
-use serde::Deserialize;
+use futures_util::{stream, Stream};
 use serde::de::DeserializeOwned;
+use serde::Deserialize;
 use serde_json::Value;
 
-use crate::api::{MaybeContinue, RequestBuilderExt, Revisions, SlotsMain, BasicSearchResult};
+use crate::api::{
+    BasicSearchResult, MaybeContinue, RecentChangesResult, RequestBuilderExt, Revisions, SlotsMain,
+};
+use crate::req::rc::ListRc;
 use crate::req::{
     self, EnumSet, ListSearch, Main, Query, QueryGenerator, QueryList, QueryProp,
     QueryPropRevisions, RvProp, RvSlot,
 };
 use crate::{api, Bot, Page};
 
+pub mod rcpatrol;
+
 pub type BoxReqFuture = BoxFuture<'static, reqwest::Result<reqwest::Response>>;
 pub type BoxRecvFuture = BoxFuture<'static, reqwest::Result<api::Query<Revisions<SlotsMain>>>>;
 
+#[derive(Default)]
 #[pin_project::pin_project(project = StateProj)]
 pub enum State<G: WikiGenerator> {
+    #[default]
     Init,
-    Fut(#[pin] Pin<Box<dyn Future<Output = crate::Result<MaybeContinue<G::Response>>> + Send + Sync>>),
+    Fut(
+        #[pin]
+        Pin<Box<dyn Future<Output = crate::Result<MaybeContinue<G::Response>>> + Send + Sync>>,
+    ),
     Values(Vec<G::Item>, Option<Value>),
     Cont(Value),
     Done,
@@ -88,24 +98,22 @@ impl<G: WikiGenerator> Stream for GeneratorStream<G> {
                 let value = v.pop().expect("must always have value");
                 let state = State::values(take(v), take(cont));
                 this.state.set(state);
-                return Poll::Ready(Some(Ok(value)))
+                return Poll::Ready(Some(Ok(value)));
             }
-            StateProj::Fut(f) => {
-                match f.poll(cx) {
-                    Poll::Pending => return Poll::Pending,
-                    Poll::Ready(res) => {
-                        let res = tryit!(res);
-                        let mut items = tryit!(this.generator.untangle_response(res.inner));
-                        if let Some(item) = items.pop() {
-                            this.state.set(State::values(items, res.cont));
-                            return Poll::Ready(Some(Ok(item)))
-                        } else {
-                            assert!(res.cont.is_none(), "Cannot continue without return value");
-                            return Poll::Ready(None)
-                        }
+            StateProj::Fut(f) => match f.poll(cx) {
+                Poll::Pending => return Poll::Pending,
+                Poll::Ready(res) => {
+                    let res = tryit!(res);
+                    let mut items = tryit!(this.generator.untangle_response(res.inner));
+                    if let Some(item) = items.pop() {
+                        this.state.set(State::values(items, res.cont));
+                        return Poll::Ready(Some(Ok(item)));
+                    } else {
+                        assert!(res.cont.is_none(), "Cannot continue without return value");
+                        return Poll::Ready(None);
                     }
                 }
-            }
+            },
             StateProj::Done => return Poll::Ready(None),
         };
 
@@ -123,8 +131,14 @@ pub trait WikiGenerator {
     fn bot(&self) -> &Bot;
     fn create_request(&self) -> Main;
     fn untangle_response(&self, res: Self::Response) -> crate::Result<Vec<Self::Item>>;
-    fn into_stream(self) -> GeneratorStream<Self> where Self: Sized {
-        GeneratorStream { generator: self, state: State::Init }
+    fn into_stream(self) -> GeneratorStream<Self>
+    where
+        Self: Sized,
+    {
+        GeneratorStream {
+            generator: self,
+            state: State::Init,
+        }
     }
 }
 
@@ -160,12 +174,36 @@ impl WikiGenerator for SearchGenerator {
     }
 }
 
-
 impl SearchGenerator {
     pub fn new(bot: Bot, search: String) -> Self {
-        Self {
-            search,
-            bot,
-        }
+        Self { search, bot }
+    }
+}
+
+pub struct RecentChangesGenerator {
+    bot: Bot,
+    rc: ListRc,
+}
+
+impl RecentChangesGenerator {
+    pub fn new(bot: Bot, rc: ListRc) -> Self {
+        Self { bot, rc }
+    }
+}
+
+impl WikiGenerator for RecentChangesGenerator {
+    type Item = RecentChangesResult;
+    type Response = api::Query<api::RecentChanges<RecentChangesResult>>;
+    fn bot(&self) -> &Bot {
+        &self.bot
+    }
+    fn create_request(&self) -> Main {
+        Main::query(Query {
+            list: Some(QueryList::RecentChanges(self.rc.clone()).into()),
+            ..Default::default()
+        })
+    }
+    fn untangle_response(&self, res: Self::Response) -> crate::Result<Vec<Self::Item>> {
+        Ok(res.query.recent_changes)
     }
 }
