@@ -1,13 +1,21 @@
 use std::time::Duration;
 
 use futures_util::{StreamExt, TryStreamExt};
+use serde_json::Value;
 use wiki::generators::rcpatrol::RecentChangesPatroller;
 use wiki::req::rc::{RcProp, RcType};
 use wiki::{BotPassword, Site};
 
 #[tokio::main]
 async fn main() -> wiki::Result<()> {
-    main_().await
+    test_streams().await
+}
+
+async fn test_streams() -> wiki::Result<()> {
+    let mut stream = wiki::events::ReqwestSseStream::revision_scores().await?;
+    let events = stream.take(10).try_collect::<Vec<_>>().await?;
+    dbg!(events);
+    Ok(())
 }
 
 async fn main_() -> wiki::Result<()> {
@@ -30,7 +38,8 @@ async fn main_() -> wiki::Result<()> {
         rcp.try_for_each_concurrent(None, |x| async move {
             println!("{:?}", x.oresscores);
             Ok(())
-        }).await
+        })
+        .await
     });
     tokio::time::sleep(Duration::from_secs(100)).await;
     Ok(())

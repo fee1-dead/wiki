@@ -1,4 +1,5 @@
 use std::future::Future;
+use std::marker::PhantomData;
 use std::mem::{replace, take};
 use std::pin::Pin;
 use std::task::{Context, Poll};
@@ -22,17 +23,22 @@ use crate::{api, Bot, Page};
 pub mod rcpatrol;
 
 pub type BoxReqFuture = BoxFuture<'static, reqwest::Result<reqwest::Response>>;
-pub type BoxRecvFuture = BoxFuture<'static, reqwest::Result<api::Query<Revisions<SlotsMain>>>>;
+pub type BoxRecvFuture = BoxFuture<'static, reqwest::Result<api::QueryResponse<Revisions<SlotsMain>>>>;
+
+pub type ResponseFuture<G> = Pin<
+    Box<
+        dyn Future<Output = crate::Result<MaybeContinue<<G as WikiGenerator>::Response>>>
+            + Send
+            + Sync,
+    >,
+>;
 
 #[derive(Default)]
 #[pin_project::pin_project(project = StateProj)]
 pub enum State<G: WikiGenerator> {
     #[default]
     Init,
-    Fut(
-        #[pin]
-        Pin<Box<dyn Future<Output = crate::Result<MaybeContinue<G::Response>>> + Send + Sync>>,
-    ),
+    Fut(#[pin] ResponseFuture<G>),
     Values(Vec<G::Item>, Option<Value>),
     Cont(Value),
     Done,
@@ -54,19 +60,9 @@ impl<G: WikiGenerator> State<G> {
 
 #[pin_project::pin_project]
 pub struct GeneratorStream<G: WikiGenerator> {
-    generator: G,
+    pub generator: G,
     #[pin]
     state: State<G>,
-}
-
-impl<G: WikiGenerator> GeneratorStream<G> {
-    pub fn generator(&self) -> &G {
-        &self.generator
-    }
-
-    pub fn generator_mut(&mut self) -> &mut G {
-        &mut self.generator
-    }
 }
 
 impl<G: WikiGenerator> Stream for GeneratorStream<G> {
@@ -142,6 +138,55 @@ pub trait WikiGenerator {
     }
 }
 
+/// GENeric GENerator, use this to create your own continuable requests
+pub struct GenGen<State, C, U, Response, Item> {
+    pub bot: Bot,
+    pub state: State,
+    create_request: C,
+    untangle_response: U,
+    _phtm: PhantomData<fn() -> (Response, Item)>,
+}
+
+impl<State, C, U, Response, Item> GenGen<State, C, U, Response, Item>
+where
+    C: Fn(&Bot, &State) -> Main,
+    U: Fn(&Bot, &State, Response) -> crate::Result<Vec<Item>>,
+    Response: DeserializeOwned,
+{
+    pub fn new(bot: Bot, state: State, create_request: C, untangle_response: U) -> Self {
+        Self {
+            bot,
+            state,
+            create_request,
+            untangle_response,
+            _phtm: PhantomData,
+        }
+    }
+}
+
+impl<State, C, U, Response, Item> WikiGenerator for GenGen<State, C, U, Response, Item>
+where
+    C: Fn(&Bot, &State) -> Main,
+    U: Fn(&Bot, &State, Response) -> crate::Result<Vec<Item>>,
+    Response: DeserializeOwned,
+    Item: 'static,
+{
+    type Item = Item;
+    type Response = Response;
+
+    fn bot(&self) -> &Bot {
+        &self.bot
+    }
+
+    fn create_request(&self) -> Main {
+        (self.create_request)(self.bot(), &self.state)
+    }
+
+    fn untangle_response(&self, res: Self::Response) -> crate::Result<Vec<Self::Item>> {
+        (self.untangle_response)(self.bot(), &self.state, res)
+    }
+}
+
 pub struct SearchGenerator {
     bot: Bot,
     search: String,
@@ -149,7 +194,7 @@ pub struct SearchGenerator {
 
 impl WikiGenerator for SearchGenerator {
     type Item = BasicSearchResult;
-    type Response = api::Query<api::Search<BasicSearchResult>>;
+    type Response = api::QueryResponse<api::Search<BasicSearchResult>>;
 
     fn bot(&self) -> &Bot {
         &self.bot
@@ -193,7 +238,7 @@ impl RecentChangesGenerator {
 
 impl WikiGenerator for RecentChangesGenerator {
     type Item = RecentChangesResult;
-    type Response = api::Query<api::RecentChanges<RecentChangesResult>>;
+    type Response = api::QueryResponse<api::RecentChanges<RecentChangesResult>>;
     fn bot(&self) -> &Bot {
         &self.bot
     }

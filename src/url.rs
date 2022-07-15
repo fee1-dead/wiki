@@ -1,3 +1,4 @@
+use std::borrow::Cow;
 use std::convert::Infallible;
 use std::ops::{BitAnd, BitOr, BitOrAssign};
 
@@ -106,8 +107,17 @@ impl<T: serde::ser::SerializeSeq> UrlParamWriter for SerdeAdaptor<T> {
 
 impl WriteUrlValue for String {
     fn ser<W: UrlParamWriter>(&self, w: BufferedName<'_, W>) -> Result<(), W::E> {
-        w.write(TriStr::Shared(self))?;
-        Ok(())
+        w.write(TriStr::Shared(self)).map(|_| ())
+    }
+}
+
+impl WriteUrlValue for Cow<'static, str> {
+    fn ser<W: UrlParamWriter>(&self, w: BufferedName<'_, W>) -> Result<(), W::E> {
+        w.write(match self {
+            Self::Borrowed(s) => TriStr::Static(s),
+            Self::Owned(s) => TriStr::Shared(s),
+        })
+        .map(|_| ())
     }
 }
 

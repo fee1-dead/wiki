@@ -5,6 +5,7 @@ use std::pin::Pin;
 use std::sync::Arc;
 use std::time::Duration;
 
+use futures_util::TryStreamExt;
 use reqwest::{Client, Response, Url};
 use serde::de::DeserializeOwned;
 use serde::Deserialize;
@@ -12,11 +13,13 @@ use serde_json::Value;
 use tokio::sync::{Mutex, MutexGuard};
 use tokio::time::{interval, Interval, MissedTickBehavior};
 
+use crate::generators::{GenGen, WikiGenerator, GeneratorStream};
 use crate::jobs::{create_server, JobQueue, JobRunner};
 use crate::req::{
-    self, Login, Main, MetaUserInfo, PageSpec, QueryMeta, QueryProp, QueryPropRevisions, RvProp,
-    RvSlot, TokenType, UserInfoProp,
+    self, Action, Format, Login, Main, MetaUserInfo, PageSpec, QueryMeta, QueryProp,
+    QueryPropRevisions, RvProp, RvSlot, TokenType, UserInfoProp,
 };
+use crate::res::PageResponse;
 use crate::url::WriteUrlParams;
 use crate::{BotPassword, Result};
 
@@ -27,9 +30,10 @@ macro_rules! basic {
             pub $name: $ty,
         }
     };
-    (@handle( $i:ident { $name:ident } )) => {
+    (@handle( $i:ident { $name:ident$([$lit:literal])? } )) => {
         #[derive(Deserialize, Debug)]
         pub struct $i<__Inner> {
+            $(#[serde(rename = $lit)])?
             pub $name: __Inner,
         }
     };
@@ -47,7 +51,8 @@ macro_rules! basic {
 
 basic! {
     SlotsMain { main: Slot }
-    Query { query }
+    QueryResponse { query }
+    AbuseLog { T => abuse_log["abuselog"]: Vec<T> }
     Search { T => search: Vec<T> }
     RecentChanges { T => recent_changes["recentchanges"]: Vec<T> }
 }
@@ -264,7 +269,7 @@ pub async fn fetch(client: &Client, url: Url, spec: PageSpec) -> Result<crate::P
     let url = mkurl(url, m);
     let res = client.get(url).send_and_report_err().await?;
     println!("{res}");
-    let body: Query<Revisions<SlotsMain>> = serde_json::from_value(res).unwrap();
+    let body: QueryResponse<Revisions<SlotsMain>> = serde_json::from_value(res).unwrap();
     let mut pages = body.query.pages.into_iter();
     let (_, page) = pages.next().expect("page to exist");
     assert!(pages.next().is_none());
@@ -285,22 +290,12 @@ pub async fn get_tokens<T: Token>(url: Url, client: &Client) -> Result<T> {
         .get(mkurl(url, Main::tokens(T::types())))
         .send()
         .await?;
-    let tokens: Query<Tokens<T>> = res.json().await?;
+    let tokens: QueryResponse<Tokens<T>> = res.json().await?;
     Ok(tokens.query.tokens)
 }
 
 pub struct BotOptions {
     highlimits: bool,
-}
-
-impl BotOptions {
-    pub fn max_limit(&self) -> usize {
-        if self.highlimits {
-            5000
-        } else {
-            500
-        }
-    }
 }
 
 impl crate::Site {
@@ -349,9 +344,10 @@ impl crate::Site {
                     ),
                     ..Default::default()
                 }));
-                let res: Query<UserInfo<UserInfoRights>> =
+                let res: QueryResponse<UserInfo<UserInfoRights>> =
                     this.client.get(url).send_parse().await?;
 
+                // TODO does highlimits need to be here
                 Ok(BotOptions {
                     highlimits: res
                         .query
@@ -391,6 +387,8 @@ impl crate::Site {
     }
 }
 
+pub type QueryAllGenerator = GenGen<Main, fn(&crate::Bot, &Main) -> Main, fn(&crate::Bot, &Main, Value) -> Result<Vec<Value>>, Value, Value>;
+
 impl crate::Bot {
     pub async fn fetch(&self, spec: PageSpec) -> Result<crate::Page> {
         fetch(&self.client, self.inn.url.clone(), spec)
@@ -399,6 +397,45 @@ impl crate::Bot {
                 bot: Some(self.clone()),
                 ..p
             })
+    }
+
+    pub async fn page_info_all<E: DeserializeOwned>(
+        &self,
+        mut query: req::Query,
+        spec: PageSpec,
+    ) -> Result<PageResponse<E>> {
+        query.pageids = None;
+        query.titles = None;
+        match spec {
+            PageSpec::Id { pageid } => query.pageids = Some(vec![pageid]),
+            PageSpec::Title { title } => query.titles = Some(vec![title]),
+        }
+
+        self.query_all(query)
+            .try_fold(Value::Null, |mut acc, new| async {
+                crate::util::merge_values(&mut acc, new);
+                Ok(acc)
+            }).await
+            .and_then(|v| Ok(serde_json::from_value(v)?))
+    }
+
+    pub fn query_all(&self, query: req::Query) -> GeneratorStream<QueryAllGenerator> {
+        let m = Main::query(query);
+
+        fn clone(_: &crate::Bot, v: &Main) -> Main {
+            v.clone()
+        }
+
+        fn response(_: &crate::Bot, _: &Main, v: Value) -> Result<Vec<Value>> {
+            Ok(vec![v])
+        }
+
+        QueryAllGenerator::new(
+            self.clone(),
+            m,
+            clone,
+            response,
+        ).into_stream()
     }
 
     pub async fn control(&self) -> MutexGuard<'_, Interval> {

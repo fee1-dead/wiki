@@ -12,12 +12,15 @@ extern crate self as wiki;
 
 pub mod api;
 mod boring_impls;
+pub mod events;
 pub mod generators;
 pub mod jobs;
 pub mod macro_support;
 pub mod req;
+pub mod res;
 pub mod types;
 pub mod url;
+pub mod util;
 
 #[derive(Debug)]
 pub struct Site {
@@ -55,8 +58,16 @@ pub enum Error {
     SerdeJson(#[from] serde_json::Error),
     #[error(transparent)]
     SerdeUrlEncoded(#[from] serde_urlencoded::ser::Error),
+    #[error("{0}")]
+    HttpTypes(http_types::Error),
     #[error("MediaWiki API returned error: {0}")]
     MediaWiki(serde_json::Value),
+}
+
+impl From<http_types::Error> for Error {
+    fn from(e: http_types::Error) -> Self {
+        Self::HttpTypes(e)
+    }
 }
 
 pub type Result<T, E = Error> = std::result::Result<T, E>;

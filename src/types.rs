@@ -2,7 +2,7 @@ use chrono::Utc;
 
 use crate::url::{TriStr, WriteUrlValue};
 
-#[derive(Clone, Copy, PartialEq, Eq)]
+#[derive(Clone, Copy, PartialEq, Eq, Debug)]
 pub enum MwTimestamp {
     Now,
     Timestamp(chrono::DateTime<Utc>),

@@ -1,3 +1,4 @@
+use std::borrow::Cow;
 use std::collections::HashSet;
 use std::fmt::Debug;
 use std::hash::Hash;
@@ -12,6 +13,8 @@ use crate::macro_support::{
     BufferedName, NamedEnum, TriStr, UrlParamWriter, WriteUrlParams, WriteUrlValue,
 };
 use crate::url::{BitflaggedEnum, SerdeAdaptor};
+
+pub mod abuse_log;
 
 #[derive(TransparentWrapper)]
 #[repr(transparent)]
@@ -73,6 +76,7 @@ impl WriteUrlValue for Limit {
 }
 
 // TODO more efficient
+#[derive(Clone)]
 pub struct EnumSet<T: BitflaggedEnum> {
     flag: T::Bitflag,
     values: Vec<T>,
@@ -232,7 +236,7 @@ impl<'a, T: BitflaggedEnum, const LEN: usize> From<[T; LEN]> for EnumSet<T> {
     }
 }
 
-#[derive(WriteUrl)]
+#[derive(WriteUrl, Clone)]
 pub struct Main {
     pub action: Action,
     pub format: Format,
@@ -274,14 +278,14 @@ impl Main {
     }
 }
 
-#[derive(WriteUrl)]
+#[derive(WriteUrl, Clone)]
 pub enum Action {
     Query(Query),
     Edit(Edit),
     Login(Login),
 }
 
-#[derive(WriteUrl, Default)]
+#[derive(WriteUrl, Default, Clone)]
 pub struct Query {
     pub list: Option<EnumSet<QueryList>>,
     pub meta: Option<EnumSet<QueryMeta>>,
@@ -292,13 +296,14 @@ pub struct Query {
     pub generator: Option<QueryGenerator>,
 }
 
-#[derive(WriteUrl)]
+#[derive(WriteUrl, Clone)]
 pub enum QueryList {
     Search(ListSearch),
     RecentChanges(rc::ListRc),
+    AbuseLog(abuse_log::ListAbuseLog),
 }
 
-#[derive(WriteUrl)]
+#[derive(WriteUrl, Clone)]
 #[wp(prepend_all = "sr")]
 pub struct ListSearch {
     pub search: String,
@@ -306,12 +311,12 @@ pub struct ListSearch {
     pub prop: Option<EnumSet<SearchProp>>,
 }
 
-#[derive(WriteUrl)]
+#[derive(WriteUrl, Clone)]
 pub enum SearchProp {}
 
 pub mod rc;
 
-#[derive(WriteUrl)]
+#[derive(WriteUrl, Clone)]
 pub enum QueryMeta {
     Tokens {
         #[wp(name = "type")]
@@ -320,23 +325,23 @@ pub enum QueryMeta {
     UserInfo(MetaUserInfo),
 }
 
-#[derive(WriteUrl)]
+#[derive(WriteUrl, Clone)]
 #[wp(prepend_all = "ui")]
 pub struct MetaUserInfo {
     pub prop: EnumSet<UserInfoProp>,
 }
 
-#[derive(WriteUrl)]
+#[derive(WriteUrl, Clone)]
 pub enum UserInfoProp {
     Rights,
 }
 
-#[derive(WriteUrl)]
+#[derive(WriteUrl, Clone)]
 pub enum QueryProp {
     Revisions(QueryPropRevisions),
 }
 
-#[derive(WriteUrl)]
+#[derive(WriteUrl, Clone)]
 #[wp(prepend_all = "rv")]
 pub struct QueryPropRevisions {
     pub prop: EnumSet<RvProp>,
@@ -344,12 +349,12 @@ pub struct QueryPropRevisions {
     pub limit: Limit,
 }
 
-#[derive(WriteUrl)]
+#[derive(WriteUrl, Clone)]
 pub enum QueryGenerator {
     Search(SearchGenerator),
 }
 
-#[derive(WriteUrl)]
+#[derive(WriteUrl, Clone)]
 #[wp(prepend_all = "gsr")]
 pub struct SearchGenerator {
     pub search: String,
@@ -357,7 +362,7 @@ pub struct SearchGenerator {
     pub offset: Option<NonZeroU32>,
 }
 
-#[derive(WriteUrl)]
+#[derive(WriteUrl, Clone)]
 pub enum RvProp {
     Comment,
     Content,
@@ -378,7 +383,7 @@ pub enum RvProp {
     UserId,
 }
 
-#[derive(WriteUrl)]
+#[derive(WriteUrl, Clone)]
 pub enum RvSlot {
     Main,
     #[wp(name = "*")]
@@ -398,14 +403,14 @@ pub enum TokenType {
     Watch,
 }
 
-#[derive(WriteUrl)]
+#[derive(WriteUrl, Clone)]
 #[wp(unnamed)]
 pub enum PageSpec {
     Title { title: String },
     Id { pageid: u32 },
 }
 
-#[derive(WriteUrl)]
+#[derive(WriteUrl, Clone)]
 pub struct Edit {
     #[wp(flatten)]
     pub spec: PageSpec,
@@ -415,7 +420,7 @@ pub struct Edit {
     pub token: String,
 }
 
-#[derive(WriteUrl)]
+#[derive(WriteUrl, Clone)]
 pub struct Login {
     #[wp(name = "lgname")]
     pub name: String,
@@ -425,7 +430,7 @@ pub struct Login {
     pub token: String,
 }
 
-#[derive(WriteUrl)]
+#[derive(WriteUrl, Clone, Copy)]
 pub enum Format {
     Json { formatversion: u8 },
     None,
