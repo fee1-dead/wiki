@@ -23,7 +23,7 @@ pub fn search_within(
     bot: &Bot,
     filter: String,
     time: Duration,
-) -> impl Stream<Item = wiki::Result<MyResponse>> + Unpin {
+) -> impl Stream<Item = wiki::Result<MyResponse>> + Unpin + Send {
     let q = wiki::req::Query {
         list: Some(
             QueryList::AbuseLog(ListAbuseLog {

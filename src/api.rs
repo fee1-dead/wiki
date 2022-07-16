@@ -12,6 +12,7 @@ use serde::Deserialize;
 use serde_json::Value;
 use tokio::sync::{Mutex, MutexGuard};
 use tokio::time::{interval, Interval, MissedTickBehavior};
+use tracing::{trace, debug};
 
 use crate::generators::{GenGen, WikiGenerator, GeneratorStream};
 use crate::jobs::{create_server, JobQueue, JobRunner};
@@ -195,7 +196,7 @@ pub fn mkurl(mut url: Url, m: Main) -> Url {
         match e {}
     }
     url.set_query(Some(&q.0));
-    println!("{url}"); // TODO remove
+    debug!(%url, "GET");
     url
 }
 
@@ -210,7 +211,7 @@ pub fn mkurl_with_ext(
     }
     q.add_serde(ext)?;
     url.set_query(Some(&q.0));
-    println!("{url}"); // TODO remove
+    debug!(%url, "GET");
     Ok(url)
 }
 
@@ -268,7 +269,7 @@ pub async fn fetch(client: &Client, url: Url, spec: PageSpec) -> Result<crate::P
 
     let url = mkurl(url, m);
     let res = client.get(url).send_and_report_err().await?;
-    println!("{res}");
+    trace!("{res}");
     let body: QueryResponse<Revisions<SlotsMain>> = serde_json::from_value(res).unwrap();
     let mut pages = body.query.pages.into_iter();
     let (_, page) = pages.next().expect("page to exist");
@@ -330,7 +331,7 @@ impl crate::Site {
             });
             let form = l.build_form();
             let v: Value = req.multipart(form).send_and_report_err().await?;
-            println!("{v}");
+            debug!("{v}");
             if v.get("login")
                 .and_then(|v| v.get("result"))
                 .map_or(false, |v| v == "Success")

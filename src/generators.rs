@@ -9,6 +9,7 @@ use futures_util::{stream, Stream};
 use serde::de::DeserializeOwned;
 use serde::Deserialize;
 use serde_json::Value;
+use tracing::{trace_span, trace};
 
 use crate::api::{
     BasicSearchResult, MaybeContinue, RecentChangesResult, RequestBuilderExt, Revisions, SlotsMain,
@@ -63,12 +64,14 @@ pub struct GeneratorStream<G: WikiGenerator> {
     pub generator: G,
     #[pin]
     state: State<G>,
+    span: tracing::span::Span,
 }
 
 impl<G: WikiGenerator> Stream for GeneratorStream<G> {
     type Item = crate::Result<G::Item>;
     fn poll_next(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Option<Self::Item>> {
         let mut this = self.as_mut().project();
+        let entered = this.span.enter();
         macro_rules! tryit {
             ($e:expr) => {
                 match $e {
@@ -84,11 +87,17 @@ impl<G: WikiGenerator> Stream for GeneratorStream<G> {
         let url = match this.state.as_mut().project() {
             StateProj::Init => {
                 let main = this.generator.create_request();
-                this.generator.bot().mkurl(main)
+                trace!("created request");
+                let u = this.generator.bot().mkurl(main);
+                trace!("created url");
+                u
             }
             StateProj::Cont(v) => {
                 let main = this.generator.create_request();
-                tryit!(this.generator.bot().mkurl_with_ext(main, v.take()))
+                trace!("created request");
+                let u = tryit!(this.generator.bot().mkurl_with_ext(main, v.take()));
+                trace!("created url");
+                u
             }
             StateProj::Values(v, cont) => {
                 let value = v.pop().expect("must always have value");
@@ -99,8 +108,10 @@ impl<G: WikiGenerator> Stream for GeneratorStream<G> {
             StateProj::Fut(f) => match f.poll(cx) {
                 Poll::Pending => return Poll::Pending,
                 Poll::Ready(res) => {
+                    trace!("received request");
                     let res = tryit!(res);
                     let mut items = tryit!(this.generator.untangle_response(res.inner));
+                    trace!("parsed response");
                     if let Some(item) = items.pop() {
                         this.state.set(State::values(items, res.cont));
                         return Poll::Ready(Some(Ok(item)));
@@ -114,7 +125,9 @@ impl<G: WikiGenerator> Stream for GeneratorStream<G> {
         };
 
         let req = this.generator.bot().client.get(url).send_parse();
+        trace!("sent request");
 
+        drop(entered);
         this.state.set(State::Fut(req));
 
         self.poll_next(cx)
@@ -134,6 +147,7 @@ pub trait WikiGenerator {
         GeneratorStream {
             generator: self,
             state: State::Init,
+            span: trace_span!("stream"),
         }
     }
 }

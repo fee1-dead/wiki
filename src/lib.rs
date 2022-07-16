@@ -7,6 +7,7 @@ use reqwest::{Client, Url};
 use serde::Deserialize;
 use tokio::sync::Mutex;
 use tokio::time::Interval;
+use tracing::Level;
 
 extern crate self as wiki;
 

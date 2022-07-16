@@ -1,0 +1,59 @@
+Case { src: "AUSFAILIA", count: 0 }
+Case { src: "YAMAL AO2", count: 0 }
+Case { src: "NJOTRANS", count: 0 }
+Case { src: "GENERISK", count: 0 }
+Case { src: "ION (?:DETOXIFY|CLEANSE)", count: 0 }
+Case { src: "DETOX FOOT SPA", count: 0 }
+Case { src: "NATION(?:AL)? DEBT RELIEF", count: 0 }
+Case { src: "YOUR ANONYMOUS VPN", count: 0 }
+Case { src: "LSGLASSES\\.COM", count: 0 }
+Case { src: "MEEBO BAR WAS LAUNCHED", count: 0 }
+Case { src: "SHAVED MY BALLS", count: 0 }
+Case { src: "CORY JUDE", count: 0 }
+Case { src: "CLEM WASHINGTON", count: 0 }
+Case { src: "THE BROTHER ZEN", count: 0 }
+Case { src: "YOLOSWAG", count: 0 }
+Case { src: "CENSORS THE TRUTH", count: 0 }
+Case { src: "9GSOO7EGS8", count: 0 }
+Case { src: "I[- ]?8(OO[- ]?(?:98G[- ]?AS2O|87O[- ]?7AI2)|77[- ]?929[- ]?EE7E)", count: 0 }
+Case { src: "DIFF=82(?:SI88EG8|GII9SGO)\\b", count: 0 }
+Case { src: "OLDID=82(?:SSE78OE|GII9A82)\\b", count: 0 }
+Case { src: "USER:BONADEA_AND_USER:FAVONIAN_ARE_SOCKS", count: 0 }
+Case { src: "RICHARD MADENFORT", count: 0 }
+Case { src: "REGGIE BRADLEY", count: 0 }
+Case { src: "78ESOAIEOI", count: 0 }
+Case { src: "DREU[FV]", count: 0 }
+Case { src: "DISUSEKID}", count: 0 }
+Case { src: "HPHELPNUMBER", count: 0 }
+Case { src: "CRUI[SZ]IR", count: 0 }
+Case { src: "\\bMY SEMEN", count: 1 }
+Case { src: "\\bROYER\\d", count: 1 }
+Case { src: "▄▄█▀▀", count: 2 }
+Case { src: "BUTTPEE", count: 2 }
+Case { src: "OH ?SHI-", count: 3 }
+Case { src: "\\bPE[MN]JS", count: 3 }
+Case { src: "CAT EYES 2OO7", count: 5 }
+Case { src: "HUEHUEHUE", count: 6 }
+Case { src: "RICK MARTY", count: 6 }
+Case { src: "CRUI?Z[IE]?[DR]+\\b", count: 6 }
+Case { src: "TASLIMSON", count: 6 }
+Case { src: "HUE HUE HUE", count: 8 }
+Case { src: "U MAD BRO", count: 10 }
+Case { src: "[FV]UERD", count: 14 }
+Case { src: "EA8O7778EAG", count: 16 }
+Case { src: "NIGGAH", count: 17 }
+Case { src: "\\bASS+[ \\-]HAT\\b", count: 18 }
+Case { src: "GNAA\\b", count: 18 }
+Case { src: "(?:DICK|COCK) IN (?:THE)? (?:ASS+|BU[TM]+|MOUTH)", count: 19 }
+Case { src: "SHREK IS LOVE", count: 45 }
+Case { src: "FUCKING KILL", count: 71 }
+Case { src: "STUPID BITCH", count: 98 }
+Case { src: "WIKIPEDIA (?:BLOW|SUCK)", count: 132 }
+Case { src: "I LIKE (?:PIE|CHEESE)", count: 156 }
+Case { src: "CLETUS ?BARTHOLOMEW", count: 195 }
+Case { src: "\\b(?:ASS+|BU(?:TT+|M+))[- ]?(?:R(?:APE|AEP)|(?:PH|F)UCK)", count: 259 }
+Case { src: "\\bLIGMA\\b", count: 1052 }
+Case { src: "PORN[- ]?STAR", count: 1744 }
+Case { src: "HAHAHAHA", count: 2496 }
+Case { src: "\\b(?:MAS+IVE|ENORMO?US|HUMO+NGO?US|HUGE|TINY|SUCK(?:ED|ING|S)?|MY|MAH|HIS) (?:(?:KAW|[CK]O)[CK]+|DICK?|PRICK|BALL*S|A[SZ]{2,})\\b", count: 6510 }
+Case { src: "NIGG(?:A(H\\W)?|ER)", count: 8377 }

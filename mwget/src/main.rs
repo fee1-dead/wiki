@@ -1,6 +1,8 @@
+use std::fs::File;
 use std::sync::atomic::{AtomicUsize, Ordering};
 use std::time::Duration;
 use std::fmt;
+use std::io::Write;
 
 use chrono::Duration as CDuration;
 use futures_util::{TryStreamExt, TryFutureExt};
@@ -8,9 +10,13 @@ use regex::Regex;
 use regex_syntax::ast::parse::Parser;
 use regex_syntax::ast::{Ast, Span};
 use tokio::task::JoinHandle;
+use tracing::Dispatch;
+use tracing_subscriber::{Layer, EnvFilter};
 use wiki::{BotPassword, Site};
 
 mod abuse_log;
+mod ccnorm;
+pub mod equivset;
 
 pub struct Case<'a> {
     pub re: Regex,
@@ -34,6 +40,15 @@ type Result<T, E = Error> = std::result::Result<T, E>;
 
 #[tokio::main]
 async fn main() -> Result<(), Error> {
+    let sub = tracing_subscriber::fmt().with_env_filter(EnvFilter::from_default_env()).finish();
+    let layer = tracing_timing::Builder::default().layer(|| tracing_timing::Histogram::new(3).unwrap());
+    // let downcaster = layer.downcaster();
+    let layered = layer.with_subscriber(sub);
+    let dispatch = Dispatch::new(layered);
+    tracing::dispatcher::set_global_default(dispatch.clone())
+        .expect("setting tracing default failed");
+    
+
     let site = Site::enwiki();
     let (bot, runner) = site
         .login(
@@ -60,20 +75,26 @@ async fn main() -> Result<(), Error> {
     let (send, mut receive) = tokio::sync::mpsc::channel(10);
 
     let read = tokio::spawn(async move { 
-        let mut stream = abuse_log::search_within(&bot, "614".into(), CDuration::weeks(4 * 12));
+        let mut stream = abuse_log::search_within(&bot, "260".into(), CDuration::weeks(52));
         while let Some(res) = stream.try_next().await? {
-            send.send(res.query.abuse_log.into_iter().map(|entry| entry.details.added_lines.join("\n"))).await?;
+            send.send(res.query.abuse_log.into_iter().map(|entry| (entry.details.added_lines.join("\n"), entry.id))).await?;
         }
         Result::<_>::Ok(())
     });
 
     let write = tokio::spawn(async move {
         while let Some(log) = receive.recv().await {
-            for entry in log {
+            for (entry, id) in log {
+                let entry = ccnorm::ccnorm(&entry);
+                let mut has_match = false;
                 for case in cases {
                     if case.re.is_match(&entry) {
                         case.count.fetch_add(1, Ordering::Relaxed);
+                        has_match = true;
                     }
+                }
+                if !has_match {
+                    panic!("No regex matched {id}");
                 }
             }
         }
@@ -83,8 +104,12 @@ async fn main() -> Result<(), Error> {
 
     let mut cases = cases.to_vec();
     cases.sort_by_key(|case| case.count.load(Ordering::Relaxed));
+
+    let mut file = File::create("result.txt")?;
+
     for case in cases {
-        println!("{case:?}")
+        println!("{case:?}");
+        writeln!(file, "{case:?}")?;
     }
 
     // abuse_log_grep::search(&bot, "614".into(), Regex::new(r"epst(?:ei|ie)n\W+did\s*n.?t\s+kill").unwrap()).await?;
