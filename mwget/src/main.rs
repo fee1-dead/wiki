@@ -6,17 +6,24 @@ use std::io::Write;
 
 use chrono::Duration as CDuration;
 use futures_util::{TryStreamExt, TryFutureExt};
-use regex::Regex;
+use regex::{Regex, RegexBuilder};
 use regex_syntax::ast::parse::Parser;
 use regex_syntax::ast::{Ast, Span};
 use tokio::task::JoinHandle;
-use tracing::Dispatch;
+use tracing::{Dispatch, warn};
 use tracing_subscriber::{Layer, EnvFilter};
 use wiki::{BotPassword, Site};
 
 mod abuse_log;
 mod ccnorm;
 pub mod equivset;
+
+#[derive(Default)]
+pub enum CaseSensitivity {
+    Insensitive,
+    #[default]
+    Sensitive,
+}
 
 pub struct Case<'a> {
     pub re: Regex,
@@ -26,11 +33,13 @@ pub struct Case<'a> {
 }
 
 impl<'a> Case<'a> {
-    pub fn new(s: &'a str, span: Span) -> Result<Self, regex::Error> {
+    pub fn new(s: &'a str, span: Span, sensitivity: CaseSensitivity) -> Result<Self, regex::Error> {
         let start = span.start.offset;
         let end = span.end.offset;
         let src = &s[start..end];
-        let re = Regex::new(src)?;
+        let mut builder = RegexBuilder::new(src);
+        builder.case_insensitive(matches!(sensitivity, CaseSensitivity::Insensitive));
+        let re = builder.build()?;
         Ok(Self { re, src, span, count: Default::default() })
     }
 }
@@ -64,7 +73,7 @@ async fn main() -> Result<(), Error> {
     let cases: Vec<_> = if let Ast::Alternation(alt) = &ast {
         alt.asts
             .iter()
-            .map(|ast| Case::new(s, *ast.span()).unwrap())
+            .map(|ast| Case::new(s, *ast.span(), CaseSensitivity::Insensitive).unwrap())
             .collect()
     } else {
         panic!("no")
@@ -75,7 +84,7 @@ async fn main() -> Result<(), Error> {
     let (send, mut receive) = tokio::sync::mpsc::channel(10);
 
     let read = tokio::spawn(async move { 
-        let mut stream = abuse_log::search_within(&bot, "260".into(), CDuration::weeks(52));
+        let mut stream = abuse_log::search_within(&bot, "614".into(), CDuration::weeks(52));
         while let Some(res) = stream.try_next().await? {
             send.send(res.query.abuse_log.into_iter().map(|entry| (entry.details.added_lines.join("\n"), entry.id))).await?;
         }
@@ -85,7 +94,7 @@ async fn main() -> Result<(), Error> {
     let write = tokio::spawn(async move {
         while let Some(log) = receive.recv().await {
             for (entry, id) in log {
-                let entry = ccnorm::ccnorm(&entry);
+                // let entry = ccnorm::ccnorm(&entry);
                 let mut has_match = false;
                 for case in cases {
                     if case.re.is_match(&entry) {
@@ -94,7 +103,7 @@ async fn main() -> Result<(), Error> {
                     }
                 }
                 if !has_match {
-                    panic!("No regex matched {id}");
+                    warn!("No regex matched {id}");
                 }
             }
         }

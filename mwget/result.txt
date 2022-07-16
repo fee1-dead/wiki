@@ -1,59 +1,57 @@
-Case { src: "AUSFAILIA", count: 0 }
-Case { src: "YAMAL AO2", count: 0 }
-Case { src: "NJOTRANS", count: 0 }
-Case { src: "GENERISK", count: 0 }
-Case { src: "ION (?:DETOXIFY|CLEANSE)", count: 0 }
-Case { src: "DETOX FOOT SPA", count: 0 }
-Case { src: "NATION(?:AL)? DEBT RELIEF", count: 0 }
-Case { src: "YOUR ANONYMOUS VPN", count: 0 }
-Case { src: "LSGLASSES\\.COM", count: 0 }
-Case { src: "MEEBO BAR WAS LAUNCHED", count: 0 }
-Case { src: "SHAVED MY BALLS", count: 0 }
-Case { src: "CORY JUDE", count: 0 }
-Case { src: "CLEM WASHINGTON", count: 0 }
-Case { src: "THE BROTHER ZEN", count: 0 }
-Case { src: "YOLOSWAG", count: 0 }
-Case { src: "CENSORS THE TRUTH", count: 0 }
-Case { src: "9GSOO7EGS8", count: 0 }
-Case { src: "I[- ]?8(OO[- ]?(?:98G[- ]?AS2O|87O[- ]?7AI2)|77[- ]?929[- ]?EE7E)", count: 0 }
-Case { src: "DIFF=82(?:SI88EG8|GII9SGO)\\b", count: 0 }
-Case { src: "OLDID=82(?:SSE78OE|GII9A82)\\b", count: 0 }
-Case { src: "USER:BONADEA_AND_USER:FAVONIAN_ARE_SOCKS", count: 0 }
-Case { src: "RICHARD MADENFORT", count: 0 }
-Case { src: "REGGIE BRADLEY", count: 0 }
-Case { src: "78ESOAIEOI", count: 0 }
-Case { src: "DREU[FV]", count: 0 }
-Case { src: "DISUSEKID}", count: 0 }
-Case { src: "HPHELPNUMBER", count: 0 }
-Case { src: "CRUI[SZ]IR", count: 0 }
-Case { src: "\\bMY SEMEN", count: 1 }
-Case { src: "\\bROYER\\d", count: 1 }
-Case { src: "▄▄█▀▀", count: 2 }
-Case { src: "BUTTPEE", count: 2 }
-Case { src: "OH ?SHI-", count: 3 }
-Case { src: "\\bPE[MN]JS", count: 3 }
-Case { src: "CAT EYES 2OO7", count: 5 }
-Case { src: "HUEHUEHUE", count: 6 }
-Case { src: "RICK MARTY", count: 6 }
-Case { src: "CRUI?Z[IE]?[DR]+\\b", count: 6 }
-Case { src: "TASLIMSON", count: 6 }
-Case { src: "HUE HUE HUE", count: 8 }
-Case { src: "U MAD BRO", count: 10 }
-Case { src: "[FV]UERD", count: 14 }
-Case { src: "EA8O7778EAG", count: 16 }
-Case { src: "NIGGAH", count: 17 }
-Case { src: "\\bASS+[ \\-]HAT\\b", count: 18 }
-Case { src: "GNAA\\b", count: 18 }
-Case { src: "(?:DICK|COCK) IN (?:THE)? (?:ASS+|BU[TM]+|MOUTH)", count: 19 }
-Case { src: "SHREK IS LOVE", count: 45 }
-Case { src: "FUCKING KILL", count: 71 }
-Case { src: "STUPID BITCH", count: 98 }
-Case { src: "WIKIPEDIA (?:BLOW|SUCK)", count: 132 }
-Case { src: "I LIKE (?:PIE|CHEESE)", count: 156 }
-Case { src: "CLETUS ?BARTHOLOMEW", count: 195 }
-Case { src: "\\b(?:ASS+|BU(?:TT+|M+))[- ]?(?:R(?:APE|AEP)|(?:PH|F)UCK)", count: 259 }
-Case { src: "\\bLIGMA\\b", count: 1052 }
-Case { src: "PORN[- ]?STAR", count: 1744 }
-Case { src: "HAHAHAHA", count: 2496 }
-Case { src: "\\b(?:MAS+IVE|ENORMO?US|HUMO+NGO?US|HUGE|TINY|SUCK(?:ED|ING|S)?|MY|MAH|HIS) (?:(?:KAW|[CK]O)[CK]+|DICK?|PRICK|BALL*S|A[SZ]{2,})\\b", count: 6510 }
-Case { src: "NIGG(?:A(H\\W)?|ER)", count: 8377 }
+Case { src: "fetus\\s*deletus", count: 1 }
+Case { src: "you'?ve\\s*been\\s*gnomed", count: 1 }
+Case { src: "e+s+k+e+t+i+t", count: 2 }
+Case { src: "gucci\\s*gang[\\s,]*gucci\\s*gang", count: 3 }
+Case { src: "hard\\s+(?:pp|peepee)", count: 3 }
+Case { src: "hit\\s*or\\s*miss[\\s,]*I\\s*guess", count: 3 }
+Case { src: "#sw[4ae]g", count: 4 }
+Case { src: "(?:f[u\\*][c\\*]k(?:ing?|ed|s)|sex\\s*with?)\\s*chickens?", count: 4 }
+Case { src: "#redirect\\s*\\[\\[donald[\\s_]trump\\]\\]", count: 5 }
+Case { src: "#yolo", count: 6 }
+Case { src: "ugandan\\s*knuckles", count: 7 }
+Case { src: "420\\s*b+l+a+z+e+\\s*i+t+", count: 8 }
+Case { src: "tran?s?.?manian?\\b", count: 10 }
+Case { src: "y\\s*o\\s*[lo\\s]+s\\s*w\\s*[4ae]+\\s*g+", count: 11 }
+Case { src: "\\by+o+l+o[lo]+", count: 11 }
+Case { src: "s+w+[4ae]+gg[g]+", count: 11 }
+Case { src: "(?:pp|peepee)\\s+hard", count: 12 }
+Case { src: "chicken\\s*f[u\\*]?[c\\*]k(?:er|s|ing)?", count: 16 }
+Case { src: "bush\\s*did\\s*9.?11", count: 16 }
+Case { src: "hitler\\s*did\\s*nothing?\\s*wrong", count: 20 }
+Case { src: "\\bdat\\s* boi", count: 24 }
+Case { src: "epst(?:ei|ie)n\\W+did\\s*n.?t\\s+kill", count: 30 }
+Case { src: "rawr\\s*xd", count: 31 }
+Case { src: "dank\\s*meme", count: 36 }
+Case { src: "ok(?:ay)?,? boomer", count: 40 }
+Case { src: "drumpf", count: 41 }
+Case { src: "\\s*i\\s*n\\s*t\\s*h\\s*[ae]\\s*p\\s*(?:(?:[@uv*]\\s*)+(?:[zs$*]\\s*)+|[zs$*]{2,})\\s*a*y+", count: 43 }
+Case { src: "(?:them'?s?|dems?|those\\s+are)'?\\s+(?:th[ea]|da)\\s+fa(?:cts|x)!?", count: 48 }
+Case { src: "\\booo+f+\\b", count: 52 }
+Case { src: "sw[4ae]g\\s*(?:yolo|daddy|money|lord|master)", count: 57 }
+Case { src: "\\bt+r+o+l(?:o+l|ll)", count: 60 }
+Case { src: "absolute\\s*unit", count: 75 }
+Case { src: "\\bayyy", count: 89 }
+Case { src: "\\bnibb+a+\\b", count: 98 }
+Case { src: "\\bbruv+\\b", count: 103 }
+Case { src: "sub(?:scrib(?:e|es|ed|ing))?\\s*(?:to|2)\\s*(?:p(ew|ud|ue|uw|oo)|te*.?series)", count: 115 }
+Case { src: "\\b(?:ranboo|tubbo)", count: 153 }
+Case { src: "\\beats?\\s*ass\\b", count: 155 }
+Case { src: "b+o+iii", count: 234 }
+Case { src: "\\br+eeeeee", count: 279 }
+Case { src: "\\bg+a+yy(?:y|\\b)", count: 415 }
+Case { src: "quandale\\s*dingle", count: 445 }
+Case { src: "\\bt+\\s*h+\\s*i+\\s*c\\s*c", count: 456 }
+Case { src: "aviation\\s*,[\\s\\S]*?there\\s*is\\s*no[\\s\\S]*?bee[\\s\\S]*?be\\s*able\\s*to\\s*fly", count: 478 }
+Case { src: "chung[uea]s\\b", count: 564 }
+Case { src: "lolo(?:lo)+", count: 807 }
+Case { src: "\\by+ee+t+(?:e+(?:r+|d+))?\\b", count: 858 }
+Case { src: "h+iiiii", count: 1014 }
+Case { src: "dQw4w9WgXcQ", count: 1033 }
+Case { src: "\\bh+iii+\\b", count: 1035 }
+Case { src: "hehehe", count: 1414 }
+Case { src: "\\bbruh+\\b", count: 1819 }
+Case { src: "\\bl+m+a+o", count: 1868 }
+Case { src: "\\buwu\\b", count: 1885 }
+Case { src: "joe m[oa]m+a", count: 1966 }
+Case { src: "(?:69\\D*420|420\\D*69|(?:69\\D{0,50}){3,})", count: 3164 }
+Case { src: "(?:d[3e](?:[3e]+[sz]+|[sz][sz]*)e*|th[3e][zs$][3e])\\s*n+u+t+[zs$]", count: 5537 }
