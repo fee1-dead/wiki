@@ -7,5 +7,7 @@ lazy_static::lazy_static! {
 }
 
 pub fn ccnorm(s: &str) -> String {
-    s.chars().map(|c| MAP.get(&c).copied().unwrap_or(c)).collect()
+    s.chars()
+        .map(|c| MAP.get(&c).copied().unwrap_or(c))
+        .collect()
 }

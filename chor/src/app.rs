@@ -1,12 +1,12 @@
-use std::{sync::Arc, future::Future};
+use std::future::Future;
+use std::sync::Arc;
 
-use egui::{CentralPanel, ScrollArea, mutex::Mutex};
+use egui::mutex::Mutex;
+use egui::{CentralPanel, ScrollArea};
 
 use crate::worker;
 
-pub struct Page {
-
-}
+pub struct Page {}
 
 #[derive(Default)]
 pub struct Ctxt {
@@ -15,7 +15,9 @@ pub struct Ctxt {
 
 impl Ctxt {
     pub fn new(cc: &eframe::CreationContext<'_>) -> Self {
-        Self { ctx: cc.egui_ctx.clone() }
+        Self {
+            ctx: cc.egui_ctx.clone(),
+        }
     }
 }
 

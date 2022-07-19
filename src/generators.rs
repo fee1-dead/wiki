@@ -9,7 +9,7 @@ use futures_util::{stream, Stream};
 use serde::de::DeserializeOwned;
 use serde::Deserialize;
 use serde_json::Value;
-use tracing::{trace_span, trace};
+use tracing::{trace, trace_span};
 
 use crate::api::{
     BasicSearchResult, MaybeContinue, RecentChangesResult, RequestBuilderExt, Revisions, SlotsMain,
@@ -24,7 +24,8 @@ use crate::{api, Bot, Page};
 pub mod rcpatrol;
 
 pub type BoxReqFuture = BoxFuture<'static, reqwest::Result<reqwest::Response>>;
-pub type BoxRecvFuture = BoxFuture<'static, reqwest::Result<api::QueryResponse<Revisions<SlotsMain>>>>;
+pub type BoxRecvFuture =
+    BoxFuture<'static, reqwest::Result<api::QueryResponse<Revisions<SlotsMain>>>>;
 
 pub type ResponseFuture<G> = Pin<
     Box<

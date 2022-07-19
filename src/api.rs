@@ -12,9 +12,9 @@ use serde::Deserialize;
 use serde_json::Value;
 use tokio::sync::{Mutex, MutexGuard};
 use tokio::time::{interval, Interval, MissedTickBehavior};
-use tracing::{trace, debug};
+use tracing::{debug, trace};
 
-use crate::generators::{GenGen, WikiGenerator, GeneratorStream};
+use crate::generators::{GenGen, GeneratorStream, WikiGenerator};
 use crate::jobs::{create_server, JobQueue, JobRunner};
 use crate::req::{
     self, Action, Format, Login, Main, MetaUserInfo, PageSpec, QueryMeta, QueryProp,
@@ -388,7 +388,13 @@ impl crate::Site {
     }
 }
 
-pub type QueryAllGenerator = GenGen<Main, fn(&crate::Bot, &Main) -> Main, fn(&crate::Bot, &Main, Value) -> Result<Vec<Value>>, Value, Value>;
+pub type QueryAllGenerator = GenGen<
+    Main,
+    fn(&crate::Bot, &Main) -> Main,
+    fn(&crate::Bot, &Main, Value) -> Result<Vec<Value>>,
+    Value,
+    Value,
+>;
 
 impl crate::Bot {
     pub async fn fetch(&self, spec: PageSpec) -> Result<crate::Page> {
@@ -416,7 +422,8 @@ impl crate::Bot {
             .try_fold(Value::Null, |mut acc, new| async {
                 crate::util::merge_values(&mut acc, new);
                 Ok(acc)
-            }).await
+            })
+            .await
             .and_then(|v| Ok(serde_json::from_value(v)?))
     }
 
@@ -431,12 +438,7 @@ impl crate::Bot {
             Ok(vec![v])
         }
 
-        QueryAllGenerator::new(
-            self.clone(),
-            m,
-            clone,
-            response,
-        ).into_stream()
+        QueryAllGenerator::new(self.clone(), m, clone, response).into_stream()
     }
 
     pub async fn control(&self) -> MutexGuard<'_, Interval> {

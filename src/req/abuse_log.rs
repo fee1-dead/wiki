@@ -1,9 +1,8 @@
 use chrono::{DateTime, Utc};
 use wikiproc::WriteUrl;
 
-use crate::types::MwTimestamp;
-
 use super::Limit;
+use crate::types::MwTimestamp;
 
 #[derive(Clone, Debug, WriteUrl)]
 #[wp(prepend_all = "afl")]

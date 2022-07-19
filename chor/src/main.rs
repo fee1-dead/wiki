@@ -10,9 +10,6 @@ fn main() {
     // Log to stdout (if you run with `RUST_LOG=debug`).
     tracing_subscriber::fmt::init();
 
-    
-    
-
     let native_options = eframe::NativeOptions::default();
     eframe::run_native(
         "Chor",
@@ -20,7 +17,11 @@ fn main() {
         Box::new(|cc| {
             let (chor, fut) = chor::Chor::new(cc);
             std::thread::spawn(|| {
-                tokio::runtime::Builder::new_current_thread().enable_all().build().unwrap().block_on(fut);
+                tokio::runtime::Builder::new_current_thread()
+                    .enable_all()
+                    .build()
+                    .unwrap()
+                    .block_on(fut);
             });
             Box::new(chor)
         }),
