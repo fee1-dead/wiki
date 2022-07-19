@@ -1,7 +1,3 @@
-use std::fmt;
-use std::sync::atomic::{AtomicUsize, Ordering};
-
-use tokio::task::JoinHandle;
 use tracing::Dispatch;
 use tracing_subscriber::{EnvFilter, Layer};
 
