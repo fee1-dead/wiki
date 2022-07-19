@@ -1,7 +1,7 @@
 use std::time::Duration;
 
 use futures_util::{StreamExt, TryStreamExt};
-use serde_json::Value;
+
 use wiki::generators::rcpatrol::RecentChangesPatroller;
 use wiki::req::rc::{RcProp, RcType};
 use wiki::{BotPassword, Site};
@@ -12,7 +12,7 @@ async fn main() -> wiki::Result<()> {
 }
 
 async fn test_streams() -> wiki::Result<()> {
-    let mut stream = wiki::events::ReqwestSseStream::revision_scores().await?;
+    let stream = wiki::events::ReqwestSseStream::revision_scores().await?;
     let events = stream.take(10).try_collect::<Vec<_>>().await?;
     dbg!(events);
     Ok(())

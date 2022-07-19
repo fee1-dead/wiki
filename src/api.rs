@@ -1,12 +1,12 @@
 use std::collections::HashMap;
 use std::future::Future;
-use std::num::NonZeroU16;
+
 use std::pin::Pin;
 use std::sync::Arc;
 use std::time::Duration;
 
 use futures_util::TryStreamExt;
-use reqwest::{Client, Response, Url};
+use reqwest::{Client, Url};
 use serde::de::DeserializeOwned;
 use serde::Deserialize;
 use serde_json::Value;
@@ -14,15 +14,15 @@ use tokio::sync::{Mutex, MutexGuard};
 use tokio::time::{interval, Interval, MissedTickBehavior};
 use tracing::{debug, trace};
 
-use crate::generators::{GenGen, GeneratorStream, WikiGenerator};
-use crate::jobs::{create_server, JobQueue, JobRunner};
+use crate::generators::{GenGen, WikiGenerator};
+use crate::jobs::{create_server, JobRunner};
 use crate::req::{
-    self, Action, Format, Login, Main, MetaUserInfo, PageSpec, QueryMeta, QueryProp,
+    self, Login, Main, MetaUserInfo, PageSpec, QueryMeta, QueryProp,
     QueryPropRevisions, RvProp, RvSlot, TokenType, UserInfoProp,
 };
 use crate::res::PageResponse;
 use crate::url::WriteUrlParams;
-use crate::{BotPassword, Result, Site, AccessExt};
+use crate::{BotPassword, Result, AccessExt};
 
 macro_rules! basic {
     (@handle( $i:ident { $name:ident: $ty:ty } )) => {

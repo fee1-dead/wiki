@@ -1,4 +1,4 @@
-use std::sync::Arc;
+
 
 use tokio::sync::mpsc::{channel, Receiver, Sender};
 
@@ -26,5 +26,5 @@ impl JobRunner {
         }
     }
 
-    pub async fn process(&mut self, job: Job) {}
+    pub async fn process(&mut self, _job: Job) {}
 }

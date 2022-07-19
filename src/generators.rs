@@ -1,13 +1,13 @@
 use std::future::Future;
 use std::marker::PhantomData;
-use std::mem::{replace, take};
+use std::mem::{take};
 use std::pin::Pin;
 use std::task::{Context, Poll};
 
 use futures_util::future::BoxFuture;
-use futures_util::{stream, Stream};
+use futures_util::{Stream};
 use serde::de::DeserializeOwned;
-use serde::Deserialize;
+
 use serde_json::Value;
 use tracing::{trace, trace_span};
 use reqwest::{Url, Client};
@@ -17,10 +17,9 @@ use crate::api::{
 };
 use crate::req::rc::ListRc;
 use crate::req::{
-    self, EnumSet, ListSearch, Main, Query, QueryGenerator, QueryList, QueryProp,
-    QueryPropRevisions, RvProp, RvSlot,
+    self, ListSearch, Main, Query, QueryList,
 };
-use crate::{api, Bot, Page, Site, Access};
+use crate::{api, Access};
 
 pub mod rcpatrol;
 
