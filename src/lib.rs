@@ -1,13 +1,18 @@
 use std::sync::Arc;
 
-use api::BotOptions;
+use api::{BotOptions, QueryAllGenerator};
+use generators::GeneratorStream;
 use jobs::JobQueue;
+use req::Main;
 use reqwest::header::{HeaderMap, HeaderValue};
 use reqwest::{Client, Url};
 use serde::Deserialize;
+use serde_json::Value;
 use tokio::sync::Mutex;
 use tokio::time::Interval;
 use tracing::Level;
+
+use crate::generators::WikiGenerator;
 
 extern crate self as wiki;
 
@@ -71,6 +76,18 @@ impl From<http_types::Error> for Error {
     }
 }
 
+pub trait Access {
+    fn client(&self) -> &Client;
+    fn url(&self) -> &Url;
+    fn mkurl(&self, m: Main) -> Url {
+        crate::api::mkurl(self.url().clone(), m)
+    }
+
+    fn mkurl_with_ext(&self, m: Main, ext: Value) -> Result<Url, serde_urlencoded::ser::Error> {
+        crate::api::mkurl_with_ext(self.url().clone(), m, ext)
+    }
+}
+
 pub type Result<T, E = Error> = std::result::Result<T, E>;
 
 // BotInn TM
@@ -88,6 +105,35 @@ pub struct Bot {
     inn: Arc<BotInn>,
     queue: JobQueue,
     client: Client,
+}
+
+impl Access for Bot {
+    fn client(&self) -> &Client {
+        &self.client
+    }
+    fn url(&self) -> &Url {
+        &self.inn.url
+    }
+}
+
+pub trait AccessExt: Access + Sized + Clone {
+    fn query_all(&self, query: req::Query) -> GeneratorStream<QueryAllGenerator<Self>>;
+}
+
+impl<T: Access + Clone> AccessExt for T {
+    fn query_all(&self, query: req::Query) -> GeneratorStream<QueryAllGenerator<Self>> {
+        let m = Main::query(query);
+
+        fn clone(_: &Url, _: &Client, v: &Main) -> Main {
+            v.clone()
+        }
+
+        fn response(_: &Url, _: &Client, _: &Main, v: Value) -> Result<Vec<Value>> {
+            Ok(vec![v])
+        }
+
+        QueryAllGenerator::new(self.clone(), m, clone, response).into_stream()
+    }
 }
 
 #[derive(Clone)]

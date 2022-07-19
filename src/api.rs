@@ -22,7 +22,7 @@ use crate::req::{
 };
 use crate::res::PageResponse;
 use crate::url::WriteUrlParams;
-use crate::{BotPassword, Result};
+use crate::{BotPassword, Result, Site, AccessExt};
 
 macro_rules! basic {
     (@handle( $i:ident { $name:ident: $ty:ty } )) => {
@@ -388,10 +388,11 @@ impl crate::Site {
     }
 }
 
-pub type QueryAllGenerator = GenGen<
+pub type QueryAllGenerator<A> = GenGen<
+    A,
     Main,
-    fn(&crate::Bot, &Main) -> Main,
-    fn(&crate::Bot, &Main, Value) -> Result<Vec<Value>>,
+    fn(&Url, &Client, &Main) -> Main,
+    fn(&Url, &Client, &Main, Value) -> Result<Vec<Value>>,
     Value,
     Value,
 >;
@@ -427,30 +428,8 @@ impl crate::Bot {
             .and_then(|v| Ok(serde_json::from_value(v)?))
     }
 
-    pub fn query_all(&self, query: req::Query) -> GeneratorStream<QueryAllGenerator> {
-        let m = Main::query(query);
-
-        fn clone(_: &crate::Bot, v: &Main) -> Main {
-            v.clone()
-        }
-
-        fn response(_: &crate::Bot, _: &Main, v: Value) -> Result<Vec<Value>> {
-            Ok(vec![v])
-        }
-
-        QueryAllGenerator::new(self.clone(), m, clone, response).into_stream()
-    }
-
     pub async fn control(&self) -> MutexGuard<'_, Interval> {
         self.inn.control.lock().await
-    }
-
-    pub fn mkurl(&self, m: Main) -> Url {
-        mkurl(self.inn.url.clone(), m)
-    }
-
-    pub fn mkurl_with_ext(&self, m: Main, ext: Value) -> Result<Url, serde_urlencoded::ser::Error> {
-        mkurl_with_ext(self.inn.url.clone(), m, ext)
     }
 
     pub fn options(&self) -> &BotOptions {

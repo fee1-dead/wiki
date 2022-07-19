@@ -10,6 +10,7 @@ use serde::de::DeserializeOwned;
 use serde::Deserialize;
 use serde_json::Value;
 use tracing::{trace, trace_span};
+use reqwest::{Url, Client};
 
 use crate::api::{
     BasicSearchResult, MaybeContinue, RecentChangesResult, RequestBuilderExt, Revisions, SlotsMain,
@@ -19,7 +20,7 @@ use crate::req::{
     self, EnumSet, ListSearch, Main, Query, QueryGenerator, QueryList, QueryProp,
     QueryPropRevisions, RvProp, RvSlot,
 };
-use crate::{api, Bot, Page};
+use crate::{api, Bot, Page, Site, Access};
 
 pub mod rcpatrol;
 
@@ -89,14 +90,14 @@ impl<G: WikiGenerator> Stream for GeneratorStream<G> {
             StateProj::Init => {
                 let main = this.generator.create_request();
                 trace!("created request");
-                let u = this.generator.bot().mkurl(main);
+                let u = crate::api::mkurl(this.generator.url().clone(), main);
                 trace!("created url");
                 u
             }
             StateProj::Cont(v) => {
                 let main = this.generator.create_request();
                 trace!("created request");
-                let u = tryit!(this.generator.bot().mkurl_with_ext(main, v.take()));
+                let u = tryit!(crate::api::mkurl_with_ext(this.generator.url().clone(), main, v.take()));
                 trace!("created url");
                 u
             }
@@ -125,7 +126,7 @@ impl<G: WikiGenerator> Stream for GeneratorStream<G> {
             StateProj::Done => return Poll::Ready(None),
         };
 
-        let req = this.generator.bot().client.get(url).send_parse();
+        let req = this.generator.client().get(url).send_parse();
         trace!("sent request");
 
         drop(entered);
@@ -138,7 +139,8 @@ impl<G: WikiGenerator> Stream for GeneratorStream<G> {
 pub trait WikiGenerator {
     type Item: 'static;
     type Response: DeserializeOwned;
-    fn bot(&self) -> &Bot;
+    fn url(&self) -> &Url;
+    fn client(&self) -> &Client;
     fn create_request(&self) -> Main;
     fn untangle_response(&self, res: Self::Response) -> crate::Result<Vec<Self::Item>>;
     fn into_stream(self) -> GeneratorStream<Self>
@@ -154,23 +156,24 @@ pub trait WikiGenerator {
 }
 
 /// GENeric GENerator, use this to create your own continuable requests
-pub struct GenGen<State, C, U, Response, Item> {
-    pub bot: Bot,
+pub struct GenGen<Access, State, C, U, Response, Item> {
+    pub access: Access,
     pub state: State,
     create_request: C,
     untangle_response: U,
     _phtm: PhantomData<fn() -> (Response, Item)>,
 }
 
-impl<State, C, U, Response, Item> GenGen<State, C, U, Response, Item>
+impl<A, State, C, U, Response, Item> GenGen<A, State, C, U, Response, Item>
 where
-    C: Fn(&Bot, &State) -> Main,
-    U: Fn(&Bot, &State, Response) -> crate::Result<Vec<Item>>,
+    A: Access,
+    C: Fn(&Url, &Client, &State) -> Main,
+    U: Fn(&Url, &Client, &State, Response) -> crate::Result<Vec<Item>>,
     Response: DeserializeOwned,
 {
-    pub fn new(bot: Bot, state: State, create_request: C, untangle_response: U) -> Self {
+    pub fn new(access: A, state: State, create_request: C, untangle_response: U) -> Self {
         Self {
-            bot,
+            access,
             state,
             create_request,
             untangle_response,
@@ -179,40 +182,49 @@ where
     }
 }
 
-impl<State, C, U, Response, Item> WikiGenerator for GenGen<State, C, U, Response, Item>
+impl<A, State, C, U, Response, Item> WikiGenerator for GenGen<A, State, C, U, Response, Item>
 where
-    C: Fn(&Bot, &State) -> Main,
-    U: Fn(&Bot, &State, Response) -> crate::Result<Vec<Item>>,
+    A: Access,
+    C: Fn(&Url, &Client, &State) -> Main,
+    U: Fn(&Url, &Client, &State, Response) -> crate::Result<Vec<Item>>,
     Response: DeserializeOwned,
     Item: 'static,
 {
     type Item = Item;
     type Response = Response;
 
-    fn bot(&self) -> &Bot {
-        &self.bot
+    fn url(&self) -> &Url {
+        self.access.url()
+    }
+
+    fn client(&self) -> &Client {
+        self.access.client()
     }
 
     fn create_request(&self) -> Main {
-        (self.create_request)(self.bot(), &self.state)
+        (self.create_request)(self.url(), self.client(), &self.state)
     }
 
     fn untangle_response(&self, res: Self::Response) -> crate::Result<Vec<Self::Item>> {
-        (self.untangle_response)(self.bot(), &self.state, res)
+        (self.untangle_response)(self.url(), self.client(), &self.state, res)
     }
 }
 
-pub struct SearchGenerator {
-    bot: Bot,
+pub struct SearchGenerator<A> {
+    access: A,
     search: String,
 }
 
-impl WikiGenerator for SearchGenerator {
+impl<A: Access> WikiGenerator for SearchGenerator<A> {
     type Item = BasicSearchResult;
     type Response = api::QueryResponse<api::Search<BasicSearchResult>>;
 
-    fn bot(&self) -> &Bot {
-        &self.bot
+    fn url(&self) -> &Url {
+        self.access.url()
+    }
+
+    fn client(&self) -> &Client {
+        self.access.client()
     }
 
     fn create_request(&self) -> Main {
@@ -234,28 +246,31 @@ impl WikiGenerator for SearchGenerator {
     }
 }
 
-impl SearchGenerator {
-    pub fn new(bot: Bot, search: String) -> Self {
-        Self { search, bot }
+impl<A: Access> SearchGenerator<A> {
+    pub fn new(access: A, search: String) -> Self {
+        Self { search, access }
     }
 }
 
-pub struct RecentChangesGenerator {
-    bot: Bot,
+pub struct RecentChangesGenerator<A> {
+    access: A,
     rc: ListRc,
 }
 
-impl RecentChangesGenerator {
-    pub fn new(bot: Bot, rc: ListRc) -> Self {
-        Self { bot, rc }
+impl<A: Access> RecentChangesGenerator<A> {
+    pub fn new(access: A, rc: ListRc) -> Self {
+        Self { access, rc }
     }
 }
 
-impl WikiGenerator for RecentChangesGenerator {
+impl<A: Access> WikiGenerator for RecentChangesGenerator<A> {
     type Item = RecentChangesResult;
     type Response = api::QueryResponse<api::RecentChanges<RecentChangesResult>>;
-    fn bot(&self) -> &Bot {
-        &self.bot
+    fn url(&self) -> &Url {
+        self.access.url()
+    }
+    fn client(&self) -> &Client {
+        self.access.client()
     }
     fn create_request(&self) -> Main {
         Main::query(Query {

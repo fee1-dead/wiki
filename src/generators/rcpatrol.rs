@@ -12,7 +12,7 @@ use crate::Bot;
 
 #[pin_project::pin_project(project = StateProj)]
 pub enum State {
-    Stream(#[pin] GeneratorStream<RecentChangesGenerator>),
+    Stream(#[pin] GeneratorStream<RecentChangesGenerator<Bot>>),
     Sleep(Pin<Box<tokio::time::Sleep>>),
 }
 

@@ -15,6 +15,7 @@ use crate::macro_support::{
 use crate::url::{BitflaggedEnum, SerdeAdaptor};
 
 pub mod abuse_log;
+pub mod events;
 
 #[derive(TransparentWrapper)]
 #[repr(transparent)]
@@ -301,6 +302,7 @@ pub enum QueryList {
     Search(ListSearch),
     RecentChanges(rc::ListRc),
     AbuseLog(abuse_log::ListAbuseLog),
+    LogEvents(events::ListLogEvents),
 }
 
 #[derive(WriteUrl, Clone)]
