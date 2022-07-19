@@ -8,6 +8,7 @@ use synstructure::VariantInfo;
 struct Options {
     named: Option<bool>,
     prepend_all: Option<String>,
+    mutual_exclusive: bool,
     // default_lowercase: bool,
 }
 
@@ -29,6 +30,9 @@ impl Options {
                         }
                         NestedMeta::Meta(Meta::Path(p)) if p.is_ident("unnamed") => {
                             r.named = Some(false)
+                        }
+                        NestedMeta::Meta(Meta::Path(p)) if p.is_ident("mutual_exclusive") => {
+                            r.mutual_exclusive = true;
                         }
                         NestedMeta::Meta(Meta::NameValue(MetaNameValue {
                             path,
@@ -198,7 +202,33 @@ pub fn derive_write_url(s: synstructure::Structure) -> syn::Result<Ts> {
             }))
         }
         Data::Enum(_) => {
-            if opts.named.unwrap_or(true) {
+            if opts.mutual_exclusive {
+                let body = s.each_variant(|v| match v.ast().fields {
+                    Fields::Unnamed(FieldsUnnamed { unnamed, .. }) if unnamed.len() == 1 => {
+                        let name = variant_name(v);
+                        let binding = &v.bindings()[0];
+
+                        quote! {{
+                            let b = w.fork(::wiki::macro_support::TriStr::Static(#name));
+                            ::wiki::macro_support::WriteUrlValue::ser(#binding, b)?;
+                        }}
+                    }
+                    _ => syn::Error::new_spanned(
+                        v.ast().ident,
+                        "too many fields, use newtype or named fields instead",
+                    )
+                    .into_compile_error(),
+                });
+                let i = s.gen_impl(quote::quote! {
+                    gen impl ::wiki::macro_support::WriteUrlParams for @Self {
+                        fn ser<W_: ::wiki::macro_support::UrlParamWriter>(&self, w: &mut W_) -> ::std::result::Result<(), W_::E> {
+                            match *self { #body }
+                            Ok(())
+                        }
+                    }
+                });
+                Ok(i)
+            } else if opts.named.unwrap_or(true) {
                 let body = s.each_variant(|v| gen_fields(v, &opts));
                 let vnames = s.each_variant(variant_name);
                 let ty = match s.variants().len() {

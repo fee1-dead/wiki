@@ -232,7 +232,6 @@ impl<A: Access> WikiGenerator for SearchGenerator<A> {
                 QueryList::Search(ListSearch {
                     search: self.search.clone(),
                     limit: req::Limit::Max,
-                    prop: None,
                 })
                 .into(),
             ),

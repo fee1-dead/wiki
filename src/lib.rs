@@ -28,7 +28,7 @@ pub mod types;
 pub mod url;
 pub mod util;
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct Site {
     client: reqwest::Client,
     url: Url,
@@ -159,7 +159,7 @@ const UA: &str = concat!(
 );
 
 impl Site {
-    pub fn new(api_url: &'static str) -> Result<Self> {
+    pub fn new(api_url: &str) -> Result<Self> {
         let url: Url = api_url.parse()?;
         assert!(url.query().is_none());
         let mut client = Client::builder();

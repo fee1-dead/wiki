@@ -15,6 +15,7 @@ use crate::macro_support::{
 use crate::url::{BitflaggedEnum, SerdeAdaptor};
 
 pub mod abuse_log;
+pub mod contribs;
 pub mod events;
 
 #[derive(TransparentWrapper)]
@@ -133,11 +134,20 @@ impl HasValue for String {
     }
 }
 
-impl HasValue for u32 {
-    const CAUTIOUS: bool = false;
-    fn value<F: FnOnce(&str) -> R, R>(&self, accept: F) -> R {
-        accept(&*self.to_string())
-    }
+macro_rules! has_value_to_string {
+    ($($ty:ty,)*) => {$(
+        impl HasValue for $ty {
+            const CAUTIOUS: bool = false;
+            fn value<F: FnOnce(&str) -> R, R>(&self, accept: F) -> R {
+                accept(&*self.to_string())
+            }
+        }
+    )*};
+}
+
+has_value_to_string! {
+    u32,
+    u64,
 }
 
 pub struct MultiValueEncoder {
@@ -303,6 +313,7 @@ pub enum QueryList {
     RecentChanges(rc::ListRc),
     AbuseLog(abuse_log::ListAbuseLog),
     LogEvents(events::ListLogEvents),
+    UserContribs(contribs::ListUserContribs),
 }
 
 #[derive(WriteUrl, Clone)]
@@ -310,11 +321,7 @@ pub enum QueryList {
 pub struct ListSearch {
     pub search: String,
     pub limit: Limit,
-    pub prop: Option<EnumSet<SearchProp>>,
 }
-
-#[derive(WriteUrl, Clone)]
-pub enum SearchProp {}
 
 pub mod rc;
 
@@ -423,12 +430,10 @@ pub struct Edit {
 }
 
 #[derive(WriteUrl, Clone)]
+#[wp(prepend_all = "lg")]
 pub struct Login {
-    #[wp(name = "lgname")]
     pub name: String,
-    #[wp(name = "lgpassword")]
     pub password: String,
-    #[wp(name = "lgtoken")]
     pub token: String,
 }
 

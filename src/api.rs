@@ -388,6 +388,15 @@ impl crate::Site {
     }
 }
 
+impl crate::Access for crate::Site {
+    fn client(&self) -> &Client {
+        &self.client
+    }
+    fn url(&self) -> &Url {
+        &self.url
+    }
+}
+
 pub type QueryAllGenerator<A> = GenGen<
     A,
     Main,
