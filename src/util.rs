@@ -1,7 +1,3 @@
-use std::fmt;
-
-use chrono::{DateTime, Utc};
-use serde::Deserializer;
 use serde_json::Value;
 
 pub fn merge_values(a: &mut Value, b: Value) {
@@ -16,22 +12,35 @@ pub fn merge_values(a: &mut Value, b: Value) {
     }
 }
 
-pub fn de_dt<'de, D: Deserializer<'de>>(d: D) -> Result<DateTime<Utc>, D::Error> {
-    pub struct Visitor;
-    impl<'a> serde::de::Visitor<'a> for Visitor {
-        type Value = DateTime<Utc>;
-        fn expecting(&self, f: &mut fmt::Formatter) -> fmt::Result {
-            f.pad("a string")
-        }
-        fn visit_str<E>(self, s: &str) -> Result<Self::Value, E>
-        where
-            E: serde::de::Error,
-        {
-            DateTime::parse_from_rfc3339(s)
-                .map(|d| d.into())
-                .map_err(|e| E::custom(e))
-        }
-    }
+pub mod dt {
+    use std::fmt;
 
-    d.deserialize_str(Visitor)
+    use chrono::{DateTime, Utc};
+    use serde::{Deserializer, Serializer, Serialize};
+
+    pub fn deserialize<'de, D: Deserializer<'de>>(d: D) -> Result<DateTime<Utc>, D::Error> {
+        pub struct Visitor;
+        impl<'a> serde::de::Visitor<'a> for Visitor {
+            type Value = DateTime<Utc>;
+            fn expecting(&self, f: &mut fmt::Formatter) -> fmt::Result {
+                f.pad("a string")
+            }
+            fn visit_str<E>(self, s: &str) -> Result<Self::Value, E>
+            where
+                E: serde::de::Error,
+            {
+                DateTime::parse_from_rfc3339(s)
+                    .map(|d| d.into())
+                    .map_err(|e| E::custom(e))
+            }
+        }
+    
+        d.deserialize_str(Visitor)
+    }
+    
+    pub fn serialize<S: Serializer>(d: &DateTime<Utc>, s: S) -> Result<S::Ok, S::Error> {
+        d.to_rfc3339().serialize(s)
+    }
 }
+
+

@@ -24,6 +24,7 @@ use crate::res::PageResponse;
 use crate::url::WriteUrlParams;
 use crate::{BotPassword, Result, AccessExt};
 
+#[macro_export]
 macro_rules! basic {
     (@handle( $i:ident { $name:ident: $ty:ty } )) => {
         #[derive(Deserialize, Debug)]

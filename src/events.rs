@@ -27,7 +27,7 @@ pub struct ReqwestSseStream<C> {
 
 #[derive(Deserialize, Debug, Clone)]
 pub struct EventMeta {
-    #[serde(deserialize_with = "crate::util::de_dt")]
+    #[serde(with = "crate::util::dt")]
     pub dt: DateTime<Utc>,
     pub stream: String,
     pub domain: Option<String>,
@@ -80,7 +80,7 @@ pub struct RevisionScoreEvent {
     pub page_is_redirect: bool,
     pub rev_id: u64,
     pub rev_parent_id: Option<u64>,
-    #[serde(deserialize_with = "crate::util::de_dt")]
+    #[serde(with = "crate::util::dt")]
     pub rev_timestamp: DateTime<Utc>,
     #[serde(default)]
     pub scores: HashMap<String, OresScores>,
