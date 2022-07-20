@@ -4,6 +4,7 @@ use tracing_subscriber::{EnvFilter, Layer};
 mod abuse_log;
 mod ccnorm;
 pub mod equivset;
+mod spitimeline;
 
 type Error = Box<dyn std::error::Error + Send + Sync>;
 type Result<T, E = Error> = std::result::Result<T, E>;
@@ -21,7 +22,9 @@ async fn main() -> Result<(), Error> {
     tracing::dispatcher::set_global_default(dispatch.clone())
         .expect("setting tracing default failed");
 
-    abuse_log::main().await?;
+    // spitimeline::main().await?;
+    spitimeline::sort()?;
+    // abuse_log::main().await?;
 
     // abuse_log_grep::search(&bot, "614".into(), Regex::new(r"epst(?:ei|ie)n\W+did\s*n.?t\s+kill").unwrap()).await?;
     Ok(())
