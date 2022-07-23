@@ -73,8 +73,6 @@ display_impls! {
 
 impl From<&'_ str> for PageSpec {
     fn from(s: &'_ str) -> Self {
-        Self::Title {
-            title: s.to_owned(),
-        }
+        Self::Title(s.into())
     }
 }

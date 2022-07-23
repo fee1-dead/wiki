@@ -261,8 +261,8 @@ pub async fn fetch(client: &Client, url: Url, spec: PageSpec) -> Result<crate::P
         ..Default::default()
     };
     match spec {
-        PageSpec::Title { title } => q.titles = vec![title].into(),
-        PageSpec::Id { pageid } => q.pageids = vec![pageid].into(),
+        PageSpec::Title(title) => q.titles = vec![title].into(),
+        PageSpec::PageId(id) => q.pageids = vec![id].into(),
     };
 
     let m = Main::query(q);
@@ -421,8 +421,8 @@ impl crate::Bot {
         query.pageids = None;
         query.titles = None;
         match spec {
-            PageSpec::Id { pageid } => query.pageids = Some(vec![pageid]),
-            PageSpec::Title { title } => query.titles = Some(vec![title]),
+            PageSpec::PageId(id) => query.pageids = Some(vec![id]),
+            PageSpec::Title(title) => query.titles = Some(vec![title]),
         }
 
         self.query_all(query)
@@ -453,7 +453,7 @@ impl crate::Page {
             let u = bot.inn.url.clone();
             let t = get_tokens::<CsrfToken>(bot.inn.url.clone(), &bot.client).await?;
             let m = Main::edit(req::Edit {
-                spec: req::PageSpec::Id { pageid: self.id },
+                spec: req::PageSpec::PageId(self.id),
                 summary: summary.to_owned(),
                 text: self.content.to_owned(),
                 baserevid: self.latest_revision,
@@ -473,7 +473,7 @@ impl crate::Page {
 
     pub async fn refetch(&mut self) -> Result<()> {
         if let Some(bot) = &self.bot {
-            let f = bot.fetch(PageSpec::Id { pageid: self.id }).await?;
+            let f = bot.fetch(PageSpec::PageId(self.id)).await?;
             *self = f;
             Ok(())
         } else {

@@ -413,10 +413,10 @@ pub enum TokenType {
 }
 
 #[derive(WriteUrl, Clone)]
-#[wp(unnamed)]
+#[wp(mutual_exclusive)]
 pub enum PageSpec {
-    Title { title: String },
-    Id { pageid: u32 },
+    Title(String),
+    PageId(u32),
 }
 
 #[derive(WriteUrl, Clone)]
