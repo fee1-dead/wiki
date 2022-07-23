@@ -123,14 +123,13 @@ pub async fn search(bot: &Bot, filter: String, re: regex::Regex) -> wiki::Result
 
 pub async fn main() -> crate::Result<()> {
     let site = Site::enwiki();
-    let (bot, runner) = site
+    let bot = site
         .login(
             BotPassword::new("ScannerBot@RustWiki", include_str!("../../veryverysecret")), // BotPassword::new("0xDeadbeef@Testing", include_str!("../verysecret")),
             Duration::from_secs(5),
         )
         .await
         .map_err(|(_, e)| e)?;
-    tokio::spawn(runner.run());
     let s = include_str!("test.re");
     let mut parser = Parser::new();
     let ast = parser.parse(s)?;
