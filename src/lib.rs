@@ -2,7 +2,6 @@ use std::sync::Arc;
 
 use api::{BotOptions, QueryAllGenerator};
 use generators::GeneratorStream;
-use jobs::JobQueue;
 use req::Main;
 use reqwest::header::{HeaderMap, HeaderValue};
 use reqwest::{Client, Url};
@@ -20,7 +19,6 @@ pub mod api;
 mod boring_impls;
 pub mod events;
 pub mod generators;
-pub mod jobs;
 pub mod macro_support;
 pub mod req;
 pub mod res;
@@ -103,7 +101,6 @@ pub struct BotInn {
 #[derive(Clone)]
 pub struct Bot {
     inn: Arc<BotInn>,
-    queue: JobQueue,
     client: Client,
 }
 

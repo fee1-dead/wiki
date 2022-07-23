@@ -14,8 +14,7 @@ use tokio::sync::{Mutex, MutexGuard};
 use tokio::time::{interval, Interval, MissedTickBehavior};
 use tracing::{debug, trace};
 
-use crate::generators::{GenGen, WikiGenerator};
-use crate::jobs::{create_server, JobRunner};
+use crate::generators::GenGen;
 use crate::req::{
     self, Login, Main, MetaUserInfo, PageSpec, QueryMeta, QueryProp,
     QueryPropRevisions, RvProp, RvSlot, TokenType, UserInfoProp,
@@ -318,7 +317,7 @@ impl crate::Site {
         self,
         password: BotPassword,
         editdelay: Duration,
-    ) -> Result<(crate::Bot, JobRunner), (Self, crate::Error)> {
+    ) -> Result<crate::Bot, (Self, crate::Error)> {
         async fn login_(
             this: &crate::Site,
             BotPassword { username, password }: BotPassword,
@@ -369,8 +368,7 @@ impl crate::Site {
 
         match res {
             Ok(options) => {
-                let (queue, r) = create_server(self.client.clone());
-                Ok((
+                Ok(
                     crate::Bot {
                         inn: Arc::new(crate::BotInn {
                             pass: password,
@@ -378,11 +376,9 @@ impl crate::Site {
                             url: self.url,
                             options,
                         }),
-                        queue,
                         client: self.client,
                     },
-                    r,
-                ))
+                )
             }
             Err(e) => Err((self, e)),
         }
