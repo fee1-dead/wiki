@@ -17,6 +17,7 @@ async fn test_streams() -> wiki::Result<()> {
     Ok(())
 }
 
+/* 
 async fn main_() -> wiki::Result<()> {
     let site = Site::enwiki();
     let bot = site
@@ -41,4 +42,4 @@ async fn main_() -> wiki::Result<()> {
     });
     tokio::time::sleep(Duration::from_secs(100)).await;
     Ok(())
-}
+}*/
