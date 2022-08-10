@@ -1,9 +1,7 @@
-
-
 use std::fmt::Debug;
 use std::hash::Hash;
 use std::mem::discriminant;
-use std::num::{NonZeroU32};
+use std::num::NonZeroU32;
 
 use bytemuck::TransparentWrapper;
 use serde::ser::SerializeSeq;
@@ -12,11 +10,14 @@ use wikiproc::WriteUrl;
 use crate::macro_support::{
     BufferedName, NamedEnum, TriStr, UrlParamWriter, WriteUrlParams, WriteUrlValue,
 };
+use crate::types::{MwTimestamp, NowableTime};
 use crate::url::{BitflaggedEnum, SerdeAdaptor};
 
 pub mod abuse_log;
+pub mod category_members;
 pub mod contribs;
 pub mod events;
+pub mod parse;
 
 #[derive(TransparentWrapper)]
 #[repr(transparent)]
@@ -74,6 +75,33 @@ impl WriteUrlValue for Limit {
             Limit::None => {}
         }
         Ok(())
+    }
+}
+
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub enum EditSection {
+    Num(u32),
+    New { title: String },
+    Custom(String),
+}
+
+impl WriteUrlValue for EditSection {
+    fn ser<W: UrlParamWriter>(&self, w: BufferedName<'_, W>) -> Result<(), W::E> {
+        match self {
+            EditSection::Custom(s) => w.write(TriStr::Shared(s)).map(|_| {}),
+            EditSection::Num(n) => w.write(format!("{n}").into()).map(|_| {}),
+            EditSection::New { title } => w
+                .write(TriStr::Shared("new"))?
+                .add(TriStr::Static("sectiontitle"), TriStr::Shared(title)),
+        }
+    }
+    fn ser_additional_only<W: UrlParamWriter>(&self, w: &mut W) -> Result<(), W::E> {
+        match self {
+            EditSection::New { title } => {
+                w.add(TriStr::Static("sectiontitle"), TriStr::Shared(title))
+            }
+            _ => Ok(()),
+        }
     }
 }
 
@@ -262,9 +290,9 @@ impl Main {
         f
     }
 
-    pub fn tokens(t: &[TokenType]) -> Self {
+    pub fn tokens(t: TokenType) -> Self {
         Self::query(Query {
-            meta: Some(QueryMeta::Tokens { type_: t.into() }.into()),
+            meta: Some(QueryMeta::Tokens { type_: t }.into()),
             ..Default::default()
         })
     }
@@ -294,6 +322,7 @@ pub enum Action {
     Query(Query),
     Edit(Edit),
     Login(Login),
+    Parse(parse::Parse),
 }
 
 #[derive(WriteUrl, Default, Clone)]
@@ -314,6 +343,7 @@ pub enum QueryList {
     AbuseLog(abuse_log::ListAbuseLog),
     LogEvents(events::ListLogEvents),
     UserContribs(contribs::ListUserContribs),
+    CategoryMembers(category_members::ListCategoryMembers),
 }
 
 #[derive(WriteUrl, Clone)]
@@ -329,11 +359,12 @@ pub mod rc;
 pub enum QueryMeta {
     Tokens {
         #[wp(name = "type")]
-        type_: EnumSet<TokenType>,
+        type_: TokenType,
     },
     UserInfo(MetaUserInfo),
 }
 
+// TODO rewrite
 #[derive(WriteUrl, Clone)]
 #[wp(prepend_all = "ui")]
 pub struct MetaUserInfo {
@@ -399,34 +430,254 @@ pub enum RvSlot {
     All,
 }
 
-#[derive(WriteUrl, Clone, Copy)]
-pub enum TokenType {
-    CreateAccount,
-    Csrf,
-    DeleteGlobalAccount,
-    Login,
-    Patrol,
-    Rollback,
-    SetGlobalAccountStatus,
-    UserRights,
-    Watch,
+wikiproc::bitflags! {
+    pub struct TokenType: u16 {
+        const CREATE_ACCOUNT = 1 << 0;
+        const CSRF = 1 << 1;
+        const DELETE_GLOBAL_ACCOUNT = 1 << 2;
+        const LOGIN = 1 << 3;
+        const PATROL = 1 << 4;
+        const ROLLBACK = 1 << 5;
+        const SET_GLOBAL_ACCOUNT_STATUS = 1 << 6;
+        const USER_RIGHTS = 1 << 7;
+        const WATCH = 1 << 8;
+    }
 }
 
-#[derive(WriteUrl, Clone)]
+#[derive(WriteUrl, Clone, Debug)]
 #[wp(mutual_exclusive)]
 pub enum PageSpec {
     Title(String),
     PageId(u32),
 }
 
+#[derive(WriteUrl, Clone, Copy, Debug, PartialEq, Eq)]
+pub enum Watchlist {
+    NoChange,
+    Preferences,
+    Unwatch,
+    Watch,
+}
+
 #[derive(WriteUrl, Clone)]
 pub struct Edit {
     #[wp(flatten)]
     pub spec: PageSpec,
-    pub text: String,
-    pub summary: String,
-    pub baserevid: u32,
+    pub section: Option<EditSection>,
+    pub text: Option<String>,
+    pub summary: Option<String>,
+    pub tags: Option<Vec<String>>,
+    pub minor: bool,
+    pub notminor: bool,
+    pub bot: bool,
+    pub baserevid: Option<u32>,
+    pub basetimestamp: Option<MwTimestamp>,
+    pub starttimestamp: Option<MwTimestamp>,
+    pub recreate: bool,
+    pub createonly: bool,
+    pub nocreate: bool,
+    pub watchlist: Option<Watchlist>,
+    pub watchlistexpiry: Option<MwTimestamp>,
+    pub md5: Option<String>,
+    pub prependtext: Option<String>,
+    pub appendtext: Option<String>,
+    pub undo: Option<u32>,
+    pub undoafter: Option<u32>,
+    pub redirect: bool,
+    pub contentformat: Option<String>,
+    pub contentmodel: Option<String>,
     pub token: String,
+    pub captchaword: Option<String>,
+    pub captchaid: Option<String>,
+}
+
+#[derive(Clone, Default)]
+pub struct EditBuilder {
+    spec: Option<PageSpec>,
+    section: Option<EditSection>,
+    text: Option<String>,
+    summary: Option<String>,
+    tags: Option<Vec<String>>,
+    minor: bool,
+    notminor: bool,
+    bot: bool,
+    baserevid: Option<u32>,
+    basetimestamp: Option<MwTimestamp>,
+    starttimestamp: Option<MwTimestamp>,
+    recreate: bool,
+    createonly: bool,
+    nocreate: bool,
+    watchlist: Option<Watchlist>,
+    watchlistexpiry: Option<MwTimestamp>,
+    md5: Option<String>,
+    prependtext: Option<String>,
+    appendtext: Option<String>,
+    undo: Option<u32>,
+    undoafter: Option<u32>,
+    redirect: bool,
+    contentformat: Option<String>,
+    contentmodel: Option<String>,
+    token: Option<String>,
+    captchaword: Option<String>,
+    captchaid: Option<String>,
+}
+
+macro_rules! builder_fns {
+    (@($name:ident : bool)) => {
+        pub fn $name(mut self) -> Self {
+            self.$name = true;
+            self
+        }
+    };
+
+    (@($name:ident : Option<String>)) => {
+        pub fn $name(mut self, value: impl Into<String>) -> Self {
+            self.$name = Some(value.into());
+            self
+        }
+    };
+
+    (@($name:ident : Option<$ty:path>)) => {
+        pub fn $name(mut self, value: $ty) -> Self {
+            self.$name = Some(value);
+            self
+        }
+    };
+
+    ($($name:ident : $ident: ident $( <$gen:ident $( <$gen2:ident>>)? $(>)? )?),*,) => {
+        // this trick is done to avoid rustc from wrapping a $:path or $:ty which means that we cannot match on them.
+        $(
+            builder_fns! {
+                @($name: $ident $( <$gen $(<$gen2>)?> )?)
+            }
+        )*
+    };
+}
+
+impl EditBuilder {
+    pub fn new() -> Self {
+        Self::default()
+    }
+
+    pub fn build(self) -> Edit {
+        self.try_build().expect("expected page spec and token")
+    }
+
+    pub fn try_build(self) -> Option<Edit> {
+        match self {
+            EditBuilder {
+                spec: Some(spec),
+                section,
+                text,
+                summary,
+                tags,
+                minor,
+                notminor,
+                bot,
+                baserevid,
+                basetimestamp,
+                starttimestamp,
+                recreate,
+                createonly,
+                nocreate,
+                watchlist,
+                watchlistexpiry,
+                md5,
+                prependtext,
+                appendtext,
+                undo,
+                undoafter,
+                redirect,
+                contentformat,
+                contentmodel,
+                token: Some(token),
+                captchaword,
+                captchaid,
+            } => Some(Edit {
+                spec,
+                section,
+                text,
+                summary,
+                tags,
+                minor,
+                notminor,
+                bot,
+                baserevid,
+                basetimestamp,
+                starttimestamp,
+                recreate,
+                createonly,
+                nocreate,
+                watchlist,
+                watchlistexpiry,
+                md5,
+                prependtext,
+                appendtext,
+                undo,
+                undoafter,
+                redirect,
+                contentformat,
+                contentmodel,
+                token,
+                captchaword,
+                captchaid,
+            }),
+            _ => None,
+        }
+    }
+
+    pub fn page_id(mut self, id: u32) -> Self {
+        self.spec = Some(PageSpec::PageId(id));
+        self
+    }
+
+    pub fn title(mut self, title: impl Into<String>) -> Self {
+        self.spec = Some(PageSpec::Title(title.into()));
+        self
+    }
+
+    pub fn new_section(mut self, title: String) -> Self {
+        self.section = Some(EditSection::New { title });
+        self
+    }
+
+    pub fn section_id(mut self, id: u32) -> Self {
+        self.section = Some(EditSection::Num(id));
+        self
+    }
+
+    pub fn section_custom(mut self, custom: String) -> Self {
+        self.section = Some(EditSection::Custom(custom));
+        self
+    }
+
+    builder_fns! {
+        text: Option<String>,
+        summary: Option<String>,
+        tags: Option<Vec<String>>,
+        minor: bool,
+        notminor: bool,
+        bot: bool,
+        baserevid: Option<u32>,
+        basetimestamp: Option<MwTimestamp>,
+        starttimestamp: Option<MwTimestamp>,
+        recreate: bool,
+        createonly: bool,
+        nocreate: bool,
+        watchlist: Option<Watchlist>,
+        watchlistexpiry: Option<MwTimestamp>,
+        md5: Option<String>,
+        prependtext: Option<String>,
+        appendtext: Option<String>,
+        undo: Option<u32>,
+        undoafter: Option<u32>,
+        redirect: bool,
+        contentformat: Option<String>,
+        contentmodel: Option<String>,
+        token: Option<String>,
+        captchaword: Option<String>,
+        captchaid: Option<String>,
+    }
 }
 
 #[derive(WriteUrl, Clone)]
@@ -444,17 +695,4 @@ pub enum Format {
     Php,
     RawFm,
     Xml,
-}
-
-#[derive(WriteUrl)]
-#[wp(prepend_all = "cm")]
-pub struct ListCategoryMembers {
-    #[wp(flatten)]
-    spec: PageSpec,
-    set: Option<EnumSet<CmProps>>,
-}
-
-#[derive(WriteUrl)]
-pub enum CmProps {
-    Ids,
 }

@@ -1,7 +1,6 @@
 use std::time::Duration;
 
 use futures_util::{StreamExt, TryStreamExt};
-
 use wiki::generators::rcpatrol::RecentChangesPatroller;
 use wiki::req::rc::{RcProp, RcType};
 use wiki::{BotPassword, Site};

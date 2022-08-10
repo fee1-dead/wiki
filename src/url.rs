@@ -136,6 +136,15 @@ impl<T: WriteUrlValue> WriteUrlValue for Option<T> {
     }
 }
 
+impl<T: WriteUrlParams> WriteUrlParams for Option<T> {
+    fn ser<W: UrlParamWriter>(&self, w: &mut W) -> Result<(), W::E> {
+        if let Some(this) = self {
+            this.ser(w)?;
+        }
+        Ok(())
+    }
+}
+
 impl WriteUrlValue for bool {
     fn ser<W: UrlParamWriter>(&self, w: BufferedName<'_, W>) -> Result<(), W::E> {
         if *self {

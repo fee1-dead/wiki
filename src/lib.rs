@@ -1,15 +1,15 @@
+use std::pin::Pin;
 use std::sync::Arc;
 
-use api::{BotOptions, QueryAllGenerator};
+use api::{BotOptions, CsrfToken, QueryAllGenerator, RequestBuilderExt, Token};
+use futures_util::{Future, TryFutureExt};
 use generators::GeneratorStream;
-use req::Main;
+use req::{Main, SerializeAdaptor, TokenType};
 use reqwest::header::{HeaderMap, HeaderValue};
-use reqwest::{Client, Url};
-use serde::Deserialize;
+use reqwest::{Client, RequestBuilder, Response, Url};
 use serde_json::Value;
 use tokio::sync::Mutex;
 use tokio::time::Interval;
-
 
 use crate::generators::WikiGenerator;
 
@@ -17,6 +17,7 @@ extern crate self as wiki;
 
 pub mod api;
 mod boring_impls;
+pub mod builder;
 pub mod events;
 pub mod generators;
 pub mod macro_support;
@@ -30,11 +31,6 @@ pub mod util;
 pub struct Site {
     client: reqwest::Client,
     url: Url,
-}
-
-#[derive(Deserialize, Debug)]
-pub struct QueryResponse<Q> {
-    pub query: Q,
 }
 
 pub struct Page {
@@ -114,10 +110,36 @@ impl Access for Bot {
 }
 
 pub trait AccessExt: Access + Sized + Clone {
-    fn query_all(&self, query: req::Query) -> GeneratorStream<QueryAllGenerator<Self>>;
-}
+    fn get(&self, action: req::Action) -> RequestBuilder {
+        let url = self.mkurl(Main {
+            action,
+            format: req::Format::Json { formatversion: 2 },
+        });
+        self.client().get(url)
+    }
+    fn post(&self, action: req::Action) -> RequestBuilder {
+        let main = Main {
+            action,
+            format: req::Format::Json { formatversion: 2 },
+        };
+        self.client()
+            .post(self.url().clone())
+            .form(&SerializeAdaptor(main))
+    }
+    fn get_csrf_token(&self) -> Pin<Box<dyn Future<Output = Result<CsrfToken>> + Send + Sync>> {
+        self.get_token()
+    }
+    fn get_token<T: Token>(&self) -> Pin<Box<dyn Future<Output = Result<T>> + Send + Sync>> {
+        let url = self.mkurl(Main {
+            action: req::Action::Query(req::Query {
+                meta: Some(req::QueryMeta::Tokens { type_: T::types() }.into()),
+                ..Default::default()
+            }),
+            format: req::Format::Json { formatversion: 2 },
+        });
 
-impl<T: Access + Clone> AccessExt for T {
+        self.client().get(url).send_parse()
+    }
     fn query_all(&self, query: req::Query) -> GeneratorStream<QueryAllGenerator<Self>> {
         let m = Main::query(query);
 
@@ -132,6 +154,8 @@ impl<T: Access + Clone> AccessExt for T {
         QueryAllGenerator::new(self.clone(), m, clone, response).into_stream()
     }
 }
+
+impl<T: Access + Clone> AccessExt for T {}
 
 #[derive(Clone)]
 pub struct BotPassword {

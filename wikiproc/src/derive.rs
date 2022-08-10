@@ -168,7 +168,7 @@ fn variant_name(v: &VariantInfo) -> String {
             ..
         })) = m
         {
-            if path.is_ident("value") {
+            if path.is_ident("name") {
                 return Some(s);
             }
         }

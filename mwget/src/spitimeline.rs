@@ -1,4 +1,4 @@
-use std::fs::{File, self};
+use std::fs::{self, File};
 use std::io::Write;
 
 use chrono::{DateTime, Utc};
@@ -6,9 +6,9 @@ use futures_util::TryStreamExt;
 use serde::{Deserialize, Serialize};
 use wiki::api::QueryResponse;
 use wiki::req::contribs::{ListUserContribs, Selector, UserContribsProp};
-use wiki::{Site, AccessExt};
 use wiki::req::events::{ListLogEvents, LogEventsProp};
-use wiki::req::{Query, Limit, QueryList};
+use wiki::req::{Limit, Query, QueryList};
+use wiki::{AccessExt, Site};
 
 #[derive(Serialize, Deserialize)]
 pub struct Event {
@@ -101,7 +101,16 @@ pub fn sort() -> crate::Result<()> {
     let mut ev: Vec<Event> = serde_json::from_str(Box::leak(s.into_boxed_str()))?;
     ev.sort_unstable_by_key(|e| e.timestamp);
     let mut f = File::create("out.txt")?;
-    for Event { user, timestamp, home_wiki, page, description, comment, link } in ev {
+    for Event {
+        user,
+        timestamp,
+        home_wiki,
+        page,
+        description,
+        comment,
+        link,
+    } in ev
+    {
         let timestamp = timestamp.to_rfc3339();
         let wiki = &link[..link.find("/w/index.php").unwrap()];
         let pagelink = format!("{wiki}/wiki/{}", page.replace(' ', "_"));
@@ -116,7 +125,6 @@ pub fn sort() -> crate::Result<()> {
     Ok(())
 }
 
-
 pub async fn main() -> crate::Result<()> {
     let mut events = vec![];
 
@@ -125,38 +133,57 @@ pub async fn main() -> crate::Result<()> {
         let site = Site::new(&api_url)?;
 
         let q = Query {
-            list: Some(QueryList::UserContribs(ListUserContribs {
-                selector: Selector::User(USERS.iter().chain(IPS).copied().map(ToOwned::to_owned).collect()),
-                prop: UserContribsProp::COMMENT
-                    | UserContribsProp::IDS
-                    | UserContribsProp::SIZEDIFF
-                    | UserContribsProp::TIMESTAMP
-                    | UserContribsProp::TITLE
-                    | UserContribsProp::FLAGS,
-                limit: Limit::Max,
-            }).into()),
+            list: Some(
+                QueryList::UserContribs(ListUserContribs {
+                    selector: Selector::User(
+                        USERS
+                            .iter()
+                            .chain(IPS)
+                            .copied()
+                            .map(ToOwned::to_owned)
+                            .collect(),
+                    ),
+                    prop: UserContribsProp::COMMENT
+                        | UserContribsProp::IDS
+                        | UserContribsProp::SIZEDIFF
+                        | UserContribsProp::TIMESTAMP
+                        | UserContribsProp::TITLE
+                        | UserContribsProp::FLAGS,
+                    limit: Limit::Max,
+                })
+                .into(),
+            ),
             ..Default::default()
         };
 
         // contribs
-        site.query_all(q).try_for_each(|x| {
-            let ret = (|| {
-                let c: QueryResponse<UserContribs> = serde_json::from_value(x)?;
-                for contrib in c.query.usercontribs {
-                    events.push(Event {
-                        user: contrib.user,
-                        timestamp: contrib.timestamp,
-                        home_wiki: name,
-                        page: contrib.title,
-                        description: format!("{}{}", if contrib.minor { "'''m''' " } else { "" }, contrib.sizediff),
-                        comment: contrib.comment,
-                        link: format!("https://{url}/w/index.php?diff=prev&oldid={}&diffmode=source", contrib.revid),
-                    })
-                }
-                Ok(())
-            })();
-            async {ret}
-        }).await?;
+        site.query_all(q)
+            .try_for_each(|x| {
+                let ret = (|| {
+                    let c: QueryResponse<UserContribs> = serde_json::from_value(x)?;
+                    for contrib in c.query.usercontribs {
+                        events.push(Event {
+                            user: contrib.user,
+                            timestamp: contrib.timestamp,
+                            home_wiki: name,
+                            page: contrib.title,
+                            description: format!(
+                                "{}{}",
+                                if contrib.minor { "'''m''' " } else { "" },
+                                contrib.sizediff
+                            ),
+                            comment: contrib.comment,
+                            link: format!(
+                                "https://{url}/w/index.php?diff=prev&oldid={}&diffmode=source",
+                                contrib.revid
+                            ),
+                        })
+                    }
+                    Ok(())
+                })();
+                async { ret }
+            })
+            .await?;
 
         // logs
         for u in USERS.iter().chain(IPS) {
@@ -170,32 +197,46 @@ pub async fn main() -> crate::Result<()> {
                             | LogEventsProp::TYPE,
                         user: Some(u.to_string()),
                         limit: Limit::Max,
-                    }).into()),
+                    })
+                    .into(),
+                ),
                 ..Default::default()
             };
-            site.query_all(m).try_for_each(|x| {
-                let ret = (|| {
-                    let c: QueryResponse<LogEvents> = serde_json::from_value(x)?;
-                    for LogEvent { logid, title, timestamp, comment, type_, action } in c.query.logevents {
-                        events.push(Event {
-                            user: u.to_string(),
+            site.query_all(m)
+                .try_for_each(|x| {
+                    let ret = (|| {
+                        let c: QueryResponse<LogEvents> = serde_json::from_value(x)?;
+                        for LogEvent {
+                            logid,
+                            title,
                             timestamp,
-                            home_wiki: name,
-                            page: title,
-                            description: format!("type: {type_}, action: {action}"),
                             comment,
-                            link: format!("https://{url}/w/index.php?title=Special:Log&logid={logid}"),
-                        })
-                    }
-                    Ok(())
-                })();
-                async {ret}
-            }).await?;
+                            type_,
+                            action,
+                        } in c.query.logevents
+                        {
+                            events.push(Event {
+                                user: u.to_string(),
+                                timestamp,
+                                home_wiki: name,
+                                page: title,
+                                description: format!("type: {type_}, action: {action}"),
+                                comment,
+                                link: format!(
+                                    "https://{url}/w/index.php?title=Special:Log&logid={logid}"
+                                ),
+                            })
+                        }
+                        Ok(())
+                    })();
+                    async { ret }
+                })
+                .await?;
         }
     }
 
     let f = File::create("test.json")?;
     serde_json::to_writer(f, &events)?;
-    
+
     Ok(())
 }

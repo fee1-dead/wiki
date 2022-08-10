@@ -1,6 +1,5 @@
 use std::collections::HashMap;
 use std::future::Future;
-
 use std::pin::Pin;
 use std::sync::Arc;
 use std::time::Duration;
@@ -16,17 +15,18 @@ use tracing::{debug, trace};
 
 use crate::generators::GenGen;
 use crate::req::{
-    self, Login, Main, MetaUserInfo, PageSpec, QueryMeta, QueryProp,
-    QueryPropRevisions, RvProp, RvSlot, TokenType, UserInfoProp,
+    self, Login, Main, MetaUserInfo, PageSpec, QueryMeta, QueryProp, QueryPropRevisions, RvProp,
+    RvSlot, TokenType, UserInfoProp,
 };
 use crate::res::PageResponse;
 use crate::url::WriteUrlParams;
-use crate::{BotPassword, Result, AccessExt};
+use crate::{AccessExt, BotPassword, Result};
 
 #[macro_export]
 macro_rules! basic {
-    (@handle( $i:ident { $name:ident: $ty:ty } )) => {
+    (@handle( $(#[$meta:meta])*  $i:ident { $name:ident: $ty:ty } )) => {
         #[derive(Deserialize, Debug)]
+        $(#[$meta])*
         pub struct $i {
             pub $name: $ty,
         }
@@ -45,8 +45,8 @@ macro_rules! basic {
             pub $name: $($rest)*,
         }
     };
-    ($($ty:ident { $($tt:tt)* })*) => {
-        $(basic!(@handle($ty { $($tt)* }));)*
+    ($( $(#[$meta:meta])* $ty:ident { $($tt:tt)* })*) => {
+        $(basic!(@handle( $(#[$meta])* $ty { $($tt)* }));)*
     };
 }
 
@@ -131,16 +131,16 @@ macro_rules! token {
             pub $token: String,
         }
         impl Token for $Name {
-            fn types() -> &'static [TokenType] { &[$($t),+] }
+            fn types() -> TokenType { $($t)|* }
         }
     };
 }
 
-token!(LoginToken = "logintoken" = [TokenType::Login] + token);
-token!(CsrfToken = "csrftoken" = [TokenType::Csrf] + token);
+token!(LoginToken = "logintoken" = [TokenType::LOGIN] + token);
+token!(CsrfToken = "csrftoken" = [TokenType::CSRF] + token);
 
 pub trait Token: DeserializeOwned {
-    fn types() -> &'static [TokenType];
+    fn types() -> TokenType;
 }
 
 pub trait TokenExt: Token {
@@ -215,7 +215,12 @@ pub fn mkurl_with_ext(
     Ok(url)
 }
 
-pub trait RequestBuilderExt: Sized {
+mod sealed {
+    pub trait Sealed {}
+    impl Sealed for reqwest::RequestBuilder {}
+}
+
+pub trait RequestBuilderExt: Sized + sealed::Sealed {
     fn send_and_report_err(
         self,
     ) -> Pin<Box<dyn Future<Output = crate::Result<Value>> + Send + Sync>>;
@@ -367,19 +372,15 @@ impl crate::Site {
         interval.set_missed_tick_behavior(MissedTickBehavior::Delay);
 
         match res {
-            Ok(options) => {
-                Ok(
-                    crate::Bot {
-                        inn: Arc::new(crate::BotInn {
-                            pass: password,
-                            control: Mutex::new(interval),
-                            url: self.url,
-                            options,
-                        }),
-                        client: self.client,
-                    },
-                )
-            }
+            Ok(options) => Ok(crate::Bot {
+                inn: Arc::new(crate::BotInn {
+                    pass: password,
+                    control: Mutex::new(interval),
+                    url: self.url,
+                    options,
+                }),
+                client: self.client,
+            }),
             Err(e) => Err((self, e)),
         }
     }
@@ -440,44 +441,5 @@ impl crate::Bot {
 
     pub fn options(&self) -> &BotOptions {
         &self.inn.options
-    }
-}
-
-impl crate::Page {
-    pub async fn save(&self, summary: &str) -> Result<()> {
-        if let Some(bot) = &self.bot {
-            if !self.changed {
-                return Ok(());
-            }
-
-            let u = bot.inn.url.clone();
-            let t = get_tokens::<CsrfToken>(bot.inn.url.clone(), &bot.client).await?;
-            let m = Main::edit(req::Edit {
-                spec: req::PageSpec::PageId(self.id),
-                summary: summary.to_owned(),
-                text: self.content.to_owned(),
-                baserevid: self.latest_revision,
-                token: t.token,
-            });
-            let f = m.build_form();
-            let res = bot.client.post(u).multipart(f).send().await?.text().await?;
-            dbg!(res);
-
-            bot.control().await.tick().await;
-
-            Ok(())
-        } else {
-            panic!("User is not logged in. This action will be logged.")
-        }
-    }
-
-    pub async fn refetch(&mut self) -> Result<()> {
-        if let Some(bot) = &self.bot {
-            let f = bot.fetch(PageSpec::PageId(self.id)).await?;
-            *self = f;
-            Ok(())
-        } else {
-            panic!("I will come up with better panic messages next time")
-        }
     }
 }

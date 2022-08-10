@@ -59,6 +59,7 @@ pub struct RecentChangeEvent {
     pub server_url: Option<String>,
     pub server_script_path: Option<String>,
     pub wiki: Option<String>,
+    #[serde(default)]
     pub minor: bool,
     pub patrolled: Option<bool>,
     pub length: Option<OldNew>,

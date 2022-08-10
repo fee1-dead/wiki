@@ -1,24 +1,21 @@
 use std::future::Future;
 use std::marker::PhantomData;
-use std::mem::{take};
+use std::mem::take;
 use std::pin::Pin;
 use std::task::{Context, Poll};
 
 use futures_util::future::BoxFuture;
-use futures_util::{Stream};
+use futures_util::Stream;
+use reqwest::{Client, Url};
 use serde::de::DeserializeOwned;
-
 use serde_json::Value;
 use tracing::{trace, trace_span};
-use reqwest::{Url, Client};
 
 use crate::api::{
     BasicSearchResult, MaybeContinue, RecentChangesResult, RequestBuilderExt, Revisions, SlotsMain,
 };
 use crate::req::rc::ListRc;
-use crate::req::{
-    self, ListSearch, Main, Query, QueryList,
-};
+use crate::req::{self, ListSearch, Main, Query, QueryList};
 use crate::{api, Access};
 
 pub mod rcpatrol;
@@ -96,7 +93,11 @@ impl<G: WikiGenerator> Stream for GeneratorStream<G> {
             StateProj::Cont(v) => {
                 let main = this.generator.create_request();
                 trace!("created request");
-                let u = tryit!(crate::api::mkurl_with_ext(this.generator.url().clone(), main, v.take()));
+                let u = tryit!(crate::api::mkurl_with_ext(
+                    this.generator.url().clone(),
+                    main,
+                    v.take()
+                ));
                 trace!("created url");
                 u
             }

@@ -16,7 +16,7 @@ pub mod dt {
     use std::fmt;
 
     use chrono::{DateTime, Utc};
-    use serde::{Deserializer, Serializer, Serialize};
+    use serde::{Deserializer, Serialize, Serializer};
 
     pub fn deserialize<'de, D: Deserializer<'de>>(d: D) -> Result<DateTime<Utc>, D::Error> {
         pub struct Visitor;
@@ -34,13 +34,11 @@ pub mod dt {
                     .map_err(|e| E::custom(e))
             }
         }
-    
+
         d.deserialize_str(Visitor)
     }
-    
+
     pub fn serialize<S: Serializer>(d: &DateTime<Utc>, s: S) -> Result<S::Ok, S::Error> {
         d.to_rfc3339().serialize(s)
     }
 }
-
-

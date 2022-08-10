@@ -1,14 +1,13 @@
-
 use wikiproc::WriteUrl;
 
 use super::Limit;
-use crate::types::MwTimestamp;
+use crate::types::NowableTime;
 
 #[derive(Clone, Debug, WriteUrl)]
 #[wp(prepend_all = "afl")]
 pub struct ListAbuseLog {
-    pub start: Option<MwTimestamp>,
-    pub end: Option<MwTimestamp>,
+    pub start: Option<NowableTime>,
+    pub end: Option<NowableTime>,
     pub filter: Option<Vec<String>>,
     pub limit: Limit,
     pub prop: AbuseLogProp,

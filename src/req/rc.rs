@@ -1,13 +1,13 @@
 use wikiproc::WriteUrl;
 
 use super::Limit;
-use crate::types::MwTimestamp;
+use crate::types::NowableTime;
 
 #[derive(WriteUrl, Clone)]
 #[wp(prepend_all = "rc")]
 pub struct ListRc {
-    pub start: Option<MwTimestamp>,
-    pub end: Option<MwTimestamp>,
+    pub start: Option<NowableTime>,
+    pub end: Option<NowableTime>,
     pub limit: Limit,
     pub prop: RcProp,
     pub ty: RcType,
