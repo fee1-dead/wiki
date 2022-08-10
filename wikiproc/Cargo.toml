@@ -1,6 +1,9 @@
 [package]
 name = "wikiproc"
-version = "0.1.0"
+description = "Internal procedural macros for the `wiki` crate"
+repository = "https://github.com/fee1-dead/wiki"
+license = "Apache-2.0 OR MIT"
+version = "0.0.1"
 edition = "2021"
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html

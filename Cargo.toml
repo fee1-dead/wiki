@@ -1,5 +1,8 @@
 [package]
 name = "wiki"
+description = "Library for interacting with MediaWiki APIs"
+repository = "https://github.com/fee1-dead/wiki"
+license = "Apache-2.0 OR MIT"
 version = "0.0.1"
 edition = "2021"
 
@@ -17,7 +20,7 @@ serde_urlencoded = "0.7.1"
 serde_json = "1"
 url = "2"
 thiserror = "1"
-wikiproc = { path = "./wikiproc" }
+wikiproc = { path = "./wikiproc", version = "0.0.1" }
 bytemuck = { version = "1", features = ["derive"] }
 urlencoding = "2"
 futures-util = { version = "0.3.21", features = ["io"] }
