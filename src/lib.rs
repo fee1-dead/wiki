@@ -14,7 +14,6 @@ extern crate self as wiki;
 
 pub mod api;
 mod boring_impls;
-pub mod builder;
 pub mod events;
 pub mod generators;
 pub mod macro_support;
