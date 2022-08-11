@@ -3,7 +3,7 @@ name = "wiki"
 description = "Library for interacting with MediaWiki APIs"
 repository = "https://github.com/fee1-dead/wiki"
 license = "Apache-2.0 OR MIT"
-version = "0.0.3"
+version = "0.0.4"
 edition = "2021"
 
 [workspace]
