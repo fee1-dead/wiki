@@ -126,7 +126,6 @@ pub async fn main() -> crate::Result<()> {
     let bot = site
         .login(
             BotPassword::new("ScannerBot@RustWiki", include_str!("../../veryverysecret")), // BotPassword::new("0xDeadbeef@Testing", include_str!("../verysecret")),
-            Duration::from_secs(5),
         )
         .await
         .map_err(|(_, e)| e)?;

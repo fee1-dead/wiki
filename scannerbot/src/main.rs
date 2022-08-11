@@ -96,7 +96,6 @@ async fn main() -> wiki::Result<()> {
     let bot = Site::enwiki()
         .login(
             BotPassword::new("ScannerBot@RustWiki", include_str!("../../veryverysecret")), // BotPassword::new("0xDeadbeef@Testing", include_str!("../verysecret")),
-            Duration::from_secs(5),
         )
         .await
         .map_err(|(_, e)| e)?;

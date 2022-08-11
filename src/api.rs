@@ -9,8 +9,6 @@ use reqwest::{Client, Url};
 use serde::de::DeserializeOwned;
 use serde::Deserialize;
 use serde_json::Value;
-use tokio::sync::{Mutex, MutexGuard};
-use tokio::time::{interval, Interval, MissedTickBehavior};
 use tracing::{debug, trace};
 
 use crate::generators::GenGen;
@@ -300,8 +298,8 @@ pub async fn get_tokens<T: Token>(url: Url, client: &Client) -> Result<T> {
     Ok(tokens.query.tokens)
 }
 
+#[non_exhaustive]
 pub struct BotOptions {
-    highlimits: bool,
 }
 
 impl crate::Site {
@@ -321,7 +319,6 @@ impl crate::Site {
     pub async fn login(
         self,
         password: BotPassword,
-        editdelay: Duration,
     ) -> Result<crate::Bot, (Self, crate::Error)> {
         async fn login_(
             this: &crate::Site,
@@ -341,41 +338,17 @@ impl crate::Site {
                 .and_then(|v| v.get("result"))
                 .map_or(false, |v| v == "Success")
             {
-                let url = this.mkurl(Main::query(req::Query {
-                    meta: Some(
-                        QueryMeta::UserInfo(MetaUserInfo {
-                            prop: UserInfoProp::Rights.into(),
-                        })
-                        .into(),
-                    ),
-                    ..Default::default()
-                }));
-                let res: QueryResponse<UserInfo<UserInfoRights>> =
-                    this.client.get(url).send_parse().await?;
-
-                // TODO does highlimits need to be here
-                Ok(BotOptions {
-                    highlimits: res
-                        .query
-                        .userinfo
-                        .extra
-                        .rights
-                        .iter()
-                        .any(|s| s == "apihighlimits"),
-                })
+                Ok(BotOptions {})
             } else {
                 panic!("Vandalism detected. Your actions will be logged at [[WP:LTA/BotAbuser]]")
             }
         }
         let res = login_(&self, password.clone()).await;
-        let mut interval = interval(editdelay);
-        interval.set_missed_tick_behavior(MissedTickBehavior::Delay);
 
         match res {
             Ok(options) => Ok(crate::Bot {
                 inn: Arc::new(crate::BotInn {
                     pass: password,
-                    control: Mutex::new(interval),
                     url: self.url,
                     options,
                 }),
@@ -433,10 +406,6 @@ impl crate::Bot {
             })
             .await
             .and_then(|v| Ok(serde_json::from_value(v)?))
-    }
-
-    pub async fn control(&self) -> MutexGuard<'_, Interval> {
-        self.inn.control.lock().await
     }
 
     pub fn options(&self) -> &BotOptions {

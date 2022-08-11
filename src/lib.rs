@@ -2,15 +2,12 @@ use std::pin::Pin;
 use std::sync::Arc;
 
 use api::{BotOptions, CsrfToken, QueryAllGenerator, RequestBuilderExt, Token};
-use futures_util::{Future, TryFutureExt};
+use futures_util::Future;
 use generators::GeneratorStream;
-use req::{Main, SerializeAdaptor, TokenType};
+use req::{Main, SerializeAdaptor};
 use reqwest::header::{HeaderMap, HeaderValue};
-use reqwest::{Client, RequestBuilder, Response, Url};
+use reqwest::{Client, RequestBuilder, Url};
 use serde_json::Value;
-use tokio::sync::Mutex;
-use tokio::time::Interval;
-
 use crate::generators::WikiGenerator;
 
 extern crate self as wiki;
@@ -89,7 +86,6 @@ pub struct BotInn {
     url: Url,
     #[allow(unused)]
     pass: BotPassword,
-    control: Mutex<Interval>,
     options: BotOptions,
 }
 

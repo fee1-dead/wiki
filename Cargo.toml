@@ -13,7 +13,6 @@ members = ["wikilinks", "wikiproc", "chor", "mwget", "scannerbot"]
 
 [dependencies]
 reqwest = { version = "0.11.10", features = ["json", "multipart", "gzip", "stream"] }
-tokio = { version = "1", features = ["full"], optional = true }
 bytes = "1"
 serde = { version = "1", features = ["derive"] }
 serde_urlencoded = "0.7.1"
@@ -36,6 +35,7 @@ skeptic = "0.13"
 
 [dev-dependencies]
 skeptic = "0.13"
+tokio = { version = "1", features = ["full"] }
 
 [features]
-default = ["reqwest/cookies", "tokio"]
+default = ["reqwest/cookies"]
