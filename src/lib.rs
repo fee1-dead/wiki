@@ -30,21 +30,6 @@ pub struct Site {
     url: Url,
 }
 
-pub struct Page {
-    content: String,
-    id: u32,
-    latest_revision: u32,
-    changed: bool,
-    bot: Option<Bot>,
-}
-
-impl Page {
-    pub fn content_mut(&mut self) -> &mut String {
-        self.changed = true;
-        &mut self.content
-    }
-}
-
 #[derive(thiserror::Error, Debug)]
 pub enum Error {
     #[error(transparent)]

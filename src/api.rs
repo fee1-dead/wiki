@@ -251,44 +251,6 @@ impl RequestBuilderExt for reqwest::RequestBuilder {
     }
 }
 
-pub async fn fetch(client: &Client, url: Url, spec: PageSpec) -> Result<crate::Page> {
-    let mut q = req::Query {
-        prop: Some(
-            QueryProp::Revisions(QueryPropRevisions {
-                prop: [RvProp::Ids, RvProp::Content].into(),
-                slots: [RvSlot::Main].into(),
-                limit: req::Limit::Value(1),
-            })
-            .into(),
-        ),
-        ..Default::default()
-    };
-    match spec {
-        PageSpec::Title(title) => q.titles = vec![title].into(),
-        PageSpec::PageId(id) => q.pageids = vec![id].into(),
-    };
-
-    let m = Main::query(q);
-
-    let url = mkurl(url, m);
-    let res = client.get(url).send_and_report_err().await?;
-    trace!("{res}");
-    let body: QueryResponse<Revisions<SlotsMain>> = serde_json::from_value(res).unwrap();
-    let mut pages = body.query.pages.into_iter();
-    let (_, page) = pages.next().expect("page to exist");
-    assert!(pages.next().is_none());
-
-    let [rev]: [_; 1] = page.revisions.try_into().unwrap();
-
-    Ok(crate::Page {
-        content: rev.slots.main.content,
-        latest_revision: rev.rev_id,
-        id: page.page_id,
-        changed: false,
-        bot: None,
-    })
-}
-
 pub async fn get_tokens<T: Token>(url: Url, client: &Client) -> Result<T> {
     let res = client
         .get(mkurl(url, Main::tokens(T::types())))
@@ -309,11 +271,6 @@ impl crate::Site {
 
     pub async fn get_tokens<T: Token>(&self) -> Result<T> {
         get_tokens(self.url.clone(), &self.client).await
-    }
-
-    /// Returns a page with the latest revision.
-    pub async fn fetch(&self, spec: PageSpec) -> Result<crate::Page> {
-        fetch(&self.client, self.url.clone(), spec).await
     }
 
     pub async fn login(
@@ -378,15 +335,6 @@ pub type QueryAllGenerator<A> = GenGen<
 >;
 
 impl crate::Bot {
-    pub async fn fetch(&self, spec: PageSpec) -> Result<crate::Page> {
-        fetch(&self.client, self.inn.url.clone(), spec)
-            .await
-            .map(|p| crate::Page {
-                bot: Some(self.clone()),
-                ..p
-            })
-    }
-
     pub async fn page_info_all<E: DeserializeOwned>(
         &self,
         mut query: req::Query,
