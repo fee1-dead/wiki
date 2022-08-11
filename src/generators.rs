@@ -18,8 +18,6 @@ use crate::req::rc::ListRc;
 use crate::req::{self, ListSearch, Main, Query, QueryList};
 use crate::{api, Access};
 
-pub mod rcpatrol;
-
 pub type BoxReqFuture = BoxFuture<'static, reqwest::Result<reqwest::Response>>;
 pub type BoxRecvFuture =
     BoxFuture<'static, reqwest::Result<api::QueryResponse<Revisions<SlotsMain>>>>;
