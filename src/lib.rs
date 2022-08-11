@@ -8,6 +8,7 @@ use req::{Main, SerializeAdaptor};
 use reqwest::header::{HeaderMap, HeaderValue};
 use reqwest::{Client, RequestBuilder, Url};
 use serde_json::Value;
+
 use crate::generators::WikiGenerator;
 
 extern crate self as wiki;

@@ -8,13 +8,10 @@ use reqwest::{Client, Url};
 use serde::de::DeserializeOwned;
 use serde::Deserialize;
 use serde_json::Value;
-use tracing::{debug,};
+use tracing::debug;
 
 use crate::generators::GenGen;
-use crate::req::{
-    self, Login, Main, PageSpec,
-    TokenType,
-};
+use crate::req::{self, Login, Main, PageSpec, TokenType};
 use crate::res::PageResponse;
 use crate::url::WriteUrlParams;
 use crate::{AccessExt, BotPassword, Result};
@@ -260,8 +257,7 @@ pub async fn get_tokens<T: Token>(url: Url, client: &Client) -> Result<T> {
 }
 
 #[non_exhaustive]
-pub struct BotOptions {
-}
+pub struct BotOptions {}
 
 impl crate::Site {
     pub fn mkurl(&self, m: Main) -> Url {
@@ -272,10 +268,7 @@ impl crate::Site {
         get_tokens(self.url.clone(), &self.client).await
     }
 
-    pub async fn login(
-        self,
-        password: BotPassword,
-    ) -> Result<crate::Bot, (Self, crate::Error)> {
+    pub async fn login(self, password: BotPassword) -> Result<crate::Bot, (Self, crate::Error)> {
         async fn login_(
             this: &crate::Site,
             BotPassword { username, password }: BotPassword,
