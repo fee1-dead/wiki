@@ -2,19 +2,18 @@ use std::collections::HashMap;
 use std::future::Future;
 use std::pin::Pin;
 use std::sync::Arc;
-use std::time::Duration;
 
 use futures_util::TryStreamExt;
 use reqwest::{Client, Url};
 use serde::de::DeserializeOwned;
 use serde::Deserialize;
 use serde_json::Value;
-use tracing::{debug, trace};
+use tracing::{debug,};
 
 use crate::generators::GenGen;
 use crate::req::{
-    self, Login, Main, MetaUserInfo, PageSpec, QueryMeta, QueryProp, QueryPropRevisions, RvProp,
-    RvSlot, TokenType, UserInfoProp,
+    self, Login, Main, PageSpec,
+    TokenType,
 };
 use crate::res::PageResponse;
 use crate::url::WriteUrlParams;

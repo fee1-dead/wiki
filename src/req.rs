@@ -10,7 +10,7 @@ use wikiproc::WriteUrl;
 use crate::macro_support::{
     BufferedName, NamedEnum, TriStr, UrlParamWriter, WriteUrlParams, WriteUrlValue,
 };
-use crate::types::{MwTimestamp, NowableTime};
+use crate::types::MwTimestamp;
 use crate::url::{BitflaggedEnum, SerdeAdaptor};
 
 pub mod abuse_log;
