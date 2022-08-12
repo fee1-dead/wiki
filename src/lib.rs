@@ -180,16 +180,14 @@ impl Site {
         Site::new("https://en.wikipedia.org/w/api.php").unwrap()
     }
 
-    pub fn testwiki() -> Self {
+    pub fn test_wikipedia() -> Self {
         Site::new("https://test.wikipedia.org/w/api.php").unwrap()
+    }
+
+    pub fn test_miraheze() -> Self {
+        Site::new("https://publictestwiki.com/w/api.php").unwrap()
     }
 }
 
 #[cfg(test)]
-mod tests {
-    #[test]
-    fn it_works() {
-        let result = 2 + 2;
-        assert_eq!(result, 4);
-    }
-}
+mod tests;
