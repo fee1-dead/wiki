@@ -64,6 +64,7 @@ display_impls! {
     u16,
     u32,
     u64,
+    i32,
     usize,
     NonZeroU16,
     NonZeroU32,

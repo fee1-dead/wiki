@@ -14,6 +14,7 @@ use crate::types::MwTimestamp;
 use crate::url::{BitflaggedEnum, SerdeAdaptor};
 
 pub mod abuse_log;
+pub mod block;
 pub mod category_members;
 pub mod contribs;
 pub mod events;
@@ -174,6 +175,7 @@ macro_rules! has_value_to_string {
 }
 
 has_value_to_string! {
+    i32,
     u32,
     u64,
 }
@@ -323,6 +325,7 @@ pub enum Action {
     Edit(Edit),
     Login(Login),
     Parse(parse::Parse),
+    Block(block::Block),
 }
 
 #[derive(WriteUrl, Default, Clone)]
