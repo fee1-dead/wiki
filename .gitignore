@@ -1,4 +1,4 @@
 /target
 /Cargo.lock
-*verysecret
+*secret
 /wikilinks/dist
