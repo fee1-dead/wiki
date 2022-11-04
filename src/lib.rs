@@ -79,6 +79,8 @@ pub enum Error {
     InvalidHeaderValue(#[from] InvalidHeaderValue),
     #[error("MediaWiki API returned error: {0}")]
     MediaWiki(serde_json::Value),
+    #[error("failed to log in")]
+    Unauthorized,
 }
 
 impl From<http_types::Error> for Error {

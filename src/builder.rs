@@ -1,5 +1,7 @@
 use std::borrow::Cow;
 use std::marker::PhantomData;
+use std::net::{Ipv4Addr, Ipv6Addr};
+use std::str::FromStr;
 
 use http_types::Url;
 use reqwest::header::{HeaderMap, HeaderValue, AUTHORIZATION};
@@ -22,8 +24,6 @@ pub struct SiteBuilder<A: Access> {
 }
 
 impl<A: Access> SiteBuilder<A> {
-
-
     pub fn user_agent(mut self, ua: impl Into<Cow<'static, str>>) -> Self {
         self.user_agent = Some(ua.into());
         self
@@ -136,6 +136,8 @@ impl SiteBuilder<AuthorizedAccess> {
             );
         }
 
+        self.client = self.client.default_headers(headers);
+
         let site = Site {
             client: self.client.build()?,
             url,
@@ -187,6 +189,11 @@ impl SiteBuilder<AuthorizedAccess> {
             .await?;
 
         info!("Logged in as \"{name}\" (id {id})");
+
+        // if we are an IP, then we are definitely not logged in.
+        if Ipv4Addr::from_str(&name).is_ok() || Ipv6Addr::from_str(&name).is_ok() {
+            return Err(crate::Error::Unauthorized);
+        }
 
         Ok(site)
     }

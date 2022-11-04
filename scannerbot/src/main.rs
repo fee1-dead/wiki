@@ -7,7 +7,8 @@ use futures_util::{Future, TryStreamExt};
 use serde::Deserialize;
 use serde_json::Value;
 use tracing_subscriber::EnvFilter;
-use wiki::{api::{QueryResponse, RequestBuilderExt}, builder::SiteBuilder};
+use wiki::api::{QueryResponse, RequestBuilderExt};
+use wiki::builder::SiteBuilder;
 use wiki::events::{EventMeta, OldNew, RecentChangeEvent};
 use wiki::req::category_members::{
     CategoryMember, CategoryMembersProp, CategoryMembersResponse, CategoryMembersType,
@@ -94,9 +95,7 @@ async fn main() -> wiki::Result<()> {
         .init();
     let stream = wiki::events::ReqwestSseStream::recent_changes().await?;
     let bot = SiteBuilder::enwiki()
-        .oauth(
-            include_str!("../../bot_oauth.txt.secret")
-        )
+        .oauth(include_str!("../../bot_oauth.txt.secret"))
         .build()
         .await?;
     let botr = &bot;

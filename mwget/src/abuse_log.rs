@@ -11,7 +11,8 @@ use regex_syntax::ast::{Ast, Span};
 use serde::Deserialize;
 use tokio::task::JoinHandle;
 use tracing::warn;
-use wiki::{api::{AbuseLog, QueryResponse}, builder::SiteBuilder};
+use wiki::api::{AbuseLog, QueryResponse};
+use wiki::builder::SiteBuilder;
 use wiki::req::abuse_log::{AbuseLogProp, ListAbuseLog};
 use wiki::req::{Limit, QueryList};
 use wiki::Bot;
@@ -122,9 +123,7 @@ pub async fn search(bot: &Bot, filter: String, re: regex::Regex) -> wiki::Result
 
 pub async fn main() -> crate::Result<()> {
     let bot = SiteBuilder::enwiki()
-        .oauth(
-            include_str!("../../bot_oauth.txt.secret")
-        )
+        .oauth(include_str!("../../bot_oauth.txt.secret"))
         .build()
         .await?;
     let s = include_str!("test.re");
