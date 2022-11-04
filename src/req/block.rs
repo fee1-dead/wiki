@@ -1,8 +1,7 @@
 use wikiproc::WriteUrl;
 
-use crate::url::TriStr;
-use crate::url::{WriteUrlValue, UrlParamWriter, BufferedName};
 use crate::types::MwTimestamp;
+use crate::url::{BufferedName, TriStr, UrlParamWriter, WriteUrlValue};
 
 #[derive(Clone)]
 pub enum Expiry {

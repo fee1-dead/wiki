@@ -1,7 +1,8 @@
+use std::fmt;
+use std::marker::PhantomData;
 use std::pin::Pin;
-use std::sync::Arc;
 
-use api::{BotOptions, CsrfToken, QueryAllGenerator, RequestBuilderExt, Token};
+use api::{CsrfToken, QueryAllGenerator, RequestBuilderExt, Token};
 use futures_util::Future;
 use generators::GeneratorStream;
 use req::{Main, SerializeAdaptor};
@@ -24,10 +25,41 @@ pub mod types;
 pub mod url;
 pub mod util;
 
-#[derive(Debug, Clone)]
-pub struct Site {
+#[derive(Clone)]
+pub struct AnonymousAccess;
+
+#[derive(Clone)]
+pub struct AuthorizedAccess(());
+
+pub(crate) mod sealed {
+    pub trait Access {}
+    impl Access for super::AnonymousAccess {}
+    impl Access for super::AuthorizedAccess {}
+}
+
+pub struct Site<T: sealed::Access = AnonymousAccess> {
     client: reqwest::Client,
     url: Url,
+    acc: PhantomData<T>,
+}
+
+impl<T: sealed::Access> Clone for Site<T> {
+    fn clone(&self) -> Self {
+        Self {
+            client: self.client.clone(),
+            url: self.url.clone(),
+            acc: PhantomData,
+        }
+    }
+}
+
+impl<T: sealed::Access> fmt::Debug for Site<T> {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.debug_struct("Site")
+            .field("client", &self.client)
+            .field("url", &self.url)
+            .finish()
+    }
 }
 
 #[derive(thiserror::Error, Debug)]
@@ -52,65 +84,42 @@ impl From<http_types::Error> for Error {
     }
 }
 
-pub trait Access {
-    fn client(&self) -> &Client;
-    fn url(&self) -> &Url;
-    fn mkurl(&self, m: Main) -> Url {
-        crate::api::mkurl(self.url().clone(), m)
-    }
-
-    fn mkurl_with_ext(&self, m: Main, ext: Value) -> Result<Url, serde_urlencoded::ser::Error> {
-        crate::api::mkurl_with_ext(self.url().clone(), m, ext)
-    }
-}
-
 pub type Result<T, E = Error> = std::result::Result<T, E>;
 
-// BotInn TM
-pub struct BotInn {
-    url: Url,
-    #[allow(unused)]
-    pass: BotPassword,
-    options: BotOptions,
-}
+pub type Bot = Site<AuthorizedAccess>;
 
-/// A bot that is logged in.
-#[derive(Clone)]
-pub struct Bot {
-    inn: Arc<BotInn>,
-    client: Client,
-}
-
-impl Access for Bot {
-    fn client(&self) -> &Client {
-        &self.client
+impl<A: sealed::Access> Site<A> {
+    pub fn mkurl(&self, m: Main) -> Url {
+        crate::api::mkurl(self.url.clone(), m)
     }
-    fn url(&self) -> &Url {
-        &self.inn.url
-    }
-}
 
-pub trait AccessExt: Access + Sized + Clone {
-    fn get(&self, action: req::Action) -> RequestBuilder {
+    pub fn mkurl_with_ext(&self, m: Main, ext: Value) -> Result<Url, serde_urlencoded::ser::Error> {
+        crate::api::mkurl_with_ext(self.url.clone(), m, ext)
+    }
+
+    pub fn get(&self, action: req::Action) -> RequestBuilder {
         let url = self.mkurl(Main {
             action,
             format: req::Format::Json { formatversion: 2 },
         });
-        self.client().get(url)
+        self.client.get(url)
     }
-    fn post(&self, action: req::Action) -> RequestBuilder {
+
+    pub fn post(&self, action: req::Action) -> RequestBuilder {
         let main = Main {
             action,
             format: req::Format::Json { formatversion: 2 },
         };
-        self.client()
-            .post(self.url().clone())
+        self.client
+            .post(self.url.clone())
             .form(&SerializeAdaptor(main))
     }
-    fn get_csrf_token(&self) -> Pin<Box<dyn Future<Output = Result<CsrfToken>> + Send + Sync>> {
+
+    pub fn get_csrf_token(&self) -> Pin<Box<dyn Future<Output = Result<CsrfToken>> + Send + Sync>> {
         self.get_token()
     }
-    fn get_token<T: Token>(&self) -> Pin<Box<dyn Future<Output = Result<T>> + Send + Sync>> {
+
+    pub fn get_token<T: Token>(&self) -> Pin<Box<dyn Future<Output = Result<T>> + Send + Sync>> {
         let url = self.mkurl(Main {
             action: req::Action::Query(req::Query {
                 meta: Some(req::QueryMeta::Tokens { type_: T::types() }.into()),
@@ -119,9 +128,10 @@ pub trait AccessExt: Access + Sized + Clone {
             format: req::Format::Json { formatversion: 2 },
         });
 
-        self.client().get(url).send_parse()
+        self.client.get(url).send_parse()
     }
-    fn query_all(&self, query: req::Query) -> GeneratorStream<QueryAllGenerator<Self>> {
+
+    pub fn query_all(&self, query: req::Query) -> GeneratorStream<QueryAllGenerator<A>> {
         let m = Main::query(query);
 
         fn clone(_: &Url, _: &Client, v: &Main) -> Main {
@@ -135,8 +145,6 @@ pub trait AccessExt: Access + Sized + Clone {
         QueryAllGenerator::new(self.clone(), m, clone, response).into_stream()
     }
 }
-
-impl<T: Access + Clone> AccessExt for T {}
 
 #[derive(Clone)]
 pub struct BotPassword {
@@ -173,7 +181,11 @@ impl Site {
         let mut headers = HeaderMap::new();
         headers.insert("Api-User-Agent", HeaderValue::from_static(UA));
 
-        Ok(Site { client, url })
+        Ok(Site {
+            client,
+            url,
+            acc: PhantomData,
+        })
     }
 
     pub fn enwiki() -> Self {

@@ -15,7 +15,7 @@ use tracing::warn;
 use wiki::api::{AbuseLog, QueryResponse};
 use wiki::req::abuse_log::{AbuseLogProp, ListAbuseLog};
 use wiki::req::{Limit, QueryList};
-use wiki::{AccessExt, Bot, BotPassword, Site};
+use wiki::{Bot, BotPassword, Site};
 
 #[derive(Deserialize, Debug)]
 pub struct AbuseLogEntry {

@@ -16,7 +16,8 @@ use crate::api::{
 };
 use crate::req::rc::ListRc;
 use crate::req::{self, ListSearch, Main, Query, QueryList};
-use crate::{api, Access};
+use crate::sealed::Access;
+use crate::{api, Site};
 
 pub type BoxReqFuture = BoxFuture<'static, reqwest::Result<reqwest::Response>>;
 pub type BoxRecvFuture =
@@ -154,8 +155,8 @@ pub trait WikiGenerator {
 }
 
 /// GENeric GENerator, use this to create your own continuable requests
-pub struct GenGen<Access, State, C, U, Response, Item> {
-    pub access: Access,
+pub struct GenGen<Access: crate::sealed::Access, State, C, U, Response, Item> {
+    pub site: Site<Access>,
     pub state: State,
     create_request: C,
     untangle_response: U,
@@ -169,9 +170,9 @@ where
     U: Fn(&Url, &Client, &State, Response) -> crate::Result<Vec<Item>>,
     Response: DeserializeOwned,
 {
-    pub fn new(access: A, state: State, create_request: C, untangle_response: U) -> Self {
+    pub fn new(site: Site<A>, state: State, create_request: C, untangle_response: U) -> Self {
         Self {
-            access,
+            site,
             state,
             create_request,
             untangle_response,
@@ -192,11 +193,11 @@ where
     type Response = Response;
 
     fn url(&self) -> &Url {
-        self.access.url()
+        &self.site.url
     }
 
     fn client(&self) -> &Client {
-        self.access.client()
+        &self.site.client
     }
 
     fn create_request(&self) -> Main {
@@ -208,8 +209,8 @@ where
     }
 }
 
-pub struct SearchGenerator<A> {
-    access: A,
+pub struct SearchGenerator<A: Access> {
+    site: Site<A>,
     search: String,
 }
 
@@ -218,11 +219,11 @@ impl<A: Access> WikiGenerator for SearchGenerator<A> {
     type Response = api::QueryResponse<api::Search<BasicSearchResult>>;
 
     fn url(&self) -> &Url {
-        self.access.url()
+        &self.site.url
     }
 
     fn client(&self) -> &Client {
-        self.access.client()
+        &self.site.client
     }
 
     fn create_request(&self) -> Main {
@@ -244,19 +245,19 @@ impl<A: Access> WikiGenerator for SearchGenerator<A> {
 }
 
 impl<A: Access> SearchGenerator<A> {
-    pub fn new(access: A, search: String) -> Self {
-        Self { search, access }
+    pub fn new(site: Site<A>, search: String) -> Self {
+        Self { site, search }
     }
 }
 
-pub struct RecentChangesGenerator<A> {
-    access: A,
+pub struct RecentChangesGenerator<A: Access> {
+    site: Site<A>,
     rc: ListRc,
 }
 
 impl<A: Access> RecentChangesGenerator<A> {
-    pub fn new(access: A, rc: ListRc) -> Self {
-        Self { access, rc }
+    pub fn new(site: Site<A>, rc: ListRc) -> Self {
+        Self { site, rc }
     }
 }
 
@@ -264,10 +265,10 @@ impl<A: Access> WikiGenerator for RecentChangesGenerator<A> {
     type Item = RecentChangesResult;
     type Response = api::QueryResponse<api::RecentChanges<RecentChangesResult>>;
     fn url(&self) -> &Url {
-        self.access.url()
+        &self.site.url
     }
     fn client(&self) -> &Client {
-        self.access.client()
+        &self.site.client
     }
     fn create_request(&self) -> Main {
         Main::query(Query {

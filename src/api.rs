@@ -1,7 +1,7 @@
 use std::collections::HashMap;
 use std::future::Future;
+use std::marker::PhantomData;
 use std::pin::Pin;
-use std::sync::Arc;
 
 use futures_util::TryStreamExt;
 use reqwest::{Client, Url};
@@ -14,7 +14,7 @@ use crate::generators::GenGen;
 use crate::req::{self, Login, Main, PageSpec, TokenType};
 use crate::res::PageResponse;
 use crate::url::WriteUrlParams;
-use crate::{AccessExt, BotPassword, Result};
+use crate::{BotPassword, Result, Site};
 
 #[macro_export]
 macro_rules! basic {
@@ -256,14 +256,7 @@ pub async fn get_tokens<T: Token>(url: Url, client: &Client) -> Result<T> {
     Ok(tokens.query.tokens)
 }
 
-#[non_exhaustive]
-pub struct BotOptions {}
-
 impl crate::Site {
-    pub fn mkurl(&self, m: Main) -> Url {
-        mkurl(self.url.clone(), m)
-    }
-
     pub async fn get_tokens<T: Token>(&self) -> Result<T> {
         get_tokens(self.url.clone(), &self.client).await
     }
@@ -272,7 +265,7 @@ impl crate::Site {
         async fn login_(
             this: &crate::Site,
             BotPassword { username, password }: BotPassword,
-        ) -> Result<BotOptions> {
+        ) -> Result<()> {
             let LoginToken { token } = this.get_tokens::<LoginToken>().await?;
             let req = this.client.post(this.url.clone());
             let l = Main::login(Login {
@@ -287,7 +280,7 @@ impl crate::Site {
                 .and_then(|v| v.get("result"))
                 .map_or(false, |v| v == "Success")
             {
-                Ok(BotOptions {})
+                Ok(())
             } else {
                 panic!("Vandalism detected. Your actions will be logged at [[WP:LTA/BotAbuser]]")
             }
@@ -295,25 +288,13 @@ impl crate::Site {
         let res = login_(&self, password.clone()).await;
 
         match res {
-            Ok(options) => Ok(crate::Bot {
-                inn: Arc::new(crate::BotInn {
-                    pass: password,
-                    url: self.url,
-                    options,
-                }),
+            Ok(()) => Ok(Site {
                 client: self.client,
+                url: self.url,
+                acc: PhantomData,
             }),
             Err(e) => Err((self, e)),
         }
-    }
-}
-
-impl crate::Access for crate::Site {
-    fn client(&self) -> &Client {
-        &self.client
-    }
-    fn url(&self) -> &Url {
-        &self.url
     }
 }
 
@@ -346,9 +327,5 @@ impl crate::Bot {
             })
             .await
             .and_then(|v| Ok(serde_json::from_value(v)?))
-    }
-
-    pub fn options(&self) -> &BotOptions {
-        &self.inn.options
     }
 }

@@ -8,7 +8,7 @@ use wiki::api::QueryResponse;
 use wiki::req::contribs::{ListUserContribs, Selector, UserContribsProp};
 use wiki::req::events::{ListLogEvents, LogEventsProp};
 use wiki::req::{Limit, Query, QueryList};
-use wiki::{AccessExt, Site};
+use wiki::Site;
 
 #[derive(Serialize, Deserialize)]
 pub struct Event {

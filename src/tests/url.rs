@@ -29,7 +29,8 @@ fn edit() {
             .build(),
     );
     let u = mkurl("https://en.wikipedia.org/w/api.php".parse().unwrap(), main);
-    assert_eq!("https://en.wikipedia.org/w/api.php?action=edit&\
+    assert_eq!(
+        "https://en.wikipedia.org/w/api.php?action=edit&\
     title=title&\
     section=new&\
     sectiontitle=newsection&\
@@ -49,5 +50,7 @@ fn edit() {
     captchaword=captchaword&\
     captchaid=captchaid&\
     format=json&\
-    formatversion=2", u.to_string())
+    formatversion=2",
+        u.to_string()
+    )
 }

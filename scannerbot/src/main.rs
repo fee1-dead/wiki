@@ -15,7 +15,7 @@ use wiki::req::category_members::{
 };
 use wiki::req::parse::{Parse as RParse, ParseProp};
 use wiki::req::{Action, Edit, EditBuilder, Limit, PageSpec, Query, QueryList};
-use wiki::{Access, AccessExt, Bot, BotPassword, Site};
+use wiki::{Bot, BotPassword, Site};
 
 #[derive(Deserialize, Debug)]
 pub struct Link {
