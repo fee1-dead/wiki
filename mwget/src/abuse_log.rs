@@ -2,9 +2,8 @@ use std::fmt;
 use std::fs::File;
 use std::io::Write;
 use std::sync::atomic::{AtomicUsize, Ordering};
-use std::time::Duration;
 
-use chrono::{Duration as CDuration, Utc};
+use chrono::{Duration, Utc};
 use futures_util::{Stream, TryFutureExt, TryStreamExt};
 use regex::{Regex, RegexBuilder};
 use regex_syntax::ast::parse::Parser;
@@ -15,7 +14,7 @@ use tracing::warn;
 use wiki::{api::{AbuseLog, QueryResponse}, builder::SiteBuilder};
 use wiki::req::abuse_log::{AbuseLogProp, ListAbuseLog};
 use wiki::req::{Limit, QueryList};
-use wiki::{Bot, BotPassword, Site};
+use wiki::Bot;
 
 #[derive(Deserialize, Debug)]
 pub struct AbuseLogEntry {
@@ -64,7 +63,7 @@ impl<'a> Case<'a> {
 pub fn search_within(
     bot: &Bot,
     filter: String,
-    time: CDuration,
+    time: Duration,
 ) -> impl Stream<Item = wiki::Result<MyResponse>> + Unpin + Send {
     let q = wiki::req::Query {
         list: Some(
@@ -89,7 +88,7 @@ pub async fn search(bot: &Bot, filter: String, re: regex::Regex) -> wiki::Result
             QueryList::AbuseLog(ListAbuseLog {
                 filter: Some(vec![filter]),
                 start: None,
-                end: Some((Utc::now() - CDuration::weeks(48)).into()),
+                end: Some((Utc::now() - Duration::weeks(48)).into()),
                 limit: Limit::Value(100),
                 prop: AbuseLogProp::IDS | AbuseLogProp::DETAILS,
             })
@@ -145,7 +144,7 @@ pub async fn main() -> crate::Result<()> {
     let (send, mut receive) = tokio::sync::mpsc::channel(10);
 
     let read = tokio::spawn(async move {
-        let mut stream = search_within(&bot, "614".into(), CDuration::weeks(52));
+        let mut stream = search_within(&bot, "614".into(), Duration::weeks(52));
         while let Some(res) = stream.try_next().await? {
             send.send(
                 res.query
