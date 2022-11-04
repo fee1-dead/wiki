@@ -6,7 +6,7 @@ use api::{CsrfToken, QueryAllGenerator, RequestBuilderExt, Token};
 use futures_util::Future;
 use generators::GeneratorStream;
 use req::{Main, SerializeAdaptor};
-use reqwest::header::{HeaderMap, HeaderValue};
+use reqwest::header::{HeaderMap, HeaderValue, InvalidHeaderValue};
 use reqwest::{Client, RequestBuilder, Url};
 use serde_json::Value;
 
@@ -16,6 +16,7 @@ extern crate self as wiki;
 
 pub mod api;
 mod boring_impls;
+pub mod builder;
 pub mod events;
 pub mod generators;
 pub mod macro_support;
@@ -74,6 +75,8 @@ pub enum Error {
     SerdeUrlEncoded(#[from] serde_urlencoded::ser::Error),
     #[error("{0}")]
     HttpTypes(http_types::Error),
+    #[error(transparent)]
+    InvalidHeaderValue(#[from] InvalidHeaderValue),
     #[error("MediaWiki API returned error: {0}")]
     MediaWiki(serde_json::Value),
 }

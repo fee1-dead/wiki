@@ -7,7 +7,7 @@ use futures_util::{Future, TryStreamExt};
 use serde::Deserialize;
 use serde_json::Value;
 use tracing_subscriber::EnvFilter;
-use wiki::api::{QueryResponse, RequestBuilderExt};
+use wiki::{api::{QueryResponse, RequestBuilderExt}, builder::SiteBuilder};
 use wiki::events::{EventMeta, OldNew, RecentChangeEvent};
 use wiki::req::category_members::{
     CategoryMember, CategoryMembersProp, CategoryMembersResponse, CategoryMembersType,
@@ -93,12 +93,12 @@ async fn main() -> wiki::Result<()> {
         .with_env_filter(EnvFilter::from_default_env())
         .init();
     let stream = wiki::events::ReqwestSseStream::recent_changes().await?;
-    let bot = Site::enwiki()
-        .login(
-            BotPassword::new("ScannerBot@RustWiki", include_str!("../../veryverysecret")), // BotPassword::new("0xDeadbeef@Testing", include_str!("../verysecret")),
+    let bot = SiteBuilder::enwiki()
+        .oauth(
+            include_str!("../../bot_oauth.txt.secret")
         )
-        .await
-        .map_err(|(_, e)| e)?;
+        .build()
+        .await?;
     let botr = &bot;
     let mut pages = HashSet::new();
     let res = bot

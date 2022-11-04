@@ -23,8 +23,8 @@ async fn main() -> Result<(), Error> {
         .expect("setting tracing default failed");
 
     // spitimeline::main().await?;
-    spitimeline::sort()?;
-    // abuse_log::main().await?;
+    // spitimeline::sort()?;
+    abuse_log::main().await?;
 
     // abuse_log_grep::search(&bot, "614".into(), Regex::new(r"epst(?:ei|ie)n\W+did\s*n.?t\s+kill").unwrap()).await?;
     Ok(())

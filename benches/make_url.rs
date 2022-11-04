@@ -1,6 +1,6 @@
 use chrono::{DateTime, NaiveDateTime, Utc};
 use criterion::{criterion_group, criterion_main, Criterion};
-use wiki::req::{Main, EditBuilder};
+use wiki::req::{EditBuilder, Main};
 use wiki::types::MwTimestamp;
 
 fn make_url_bench(c: &mut Criterion) {
@@ -27,7 +27,9 @@ fn make_url_bench(c: &mut Criterion) {
                 captchaword=captchaword&\
                 captchaid=captchaid&\
                 format=json&\
-                formatversion=2".parse().unwrap();
+                formatversion=2"
+                    .parse()
+                    .unwrap();
                 u
             });
         })
@@ -40,7 +42,10 @@ fn make_url_bench(c: &mut Criterion) {
                         .bot()
                         .appendtext("app")
                         .baserevid(0)
-                        .basetimestamp(MwTimestamp(DateTime::from_utc(NaiveDateTime::from_timestamp(0, 0), Utc)))
+                        .basetimestamp(MwTimestamp(DateTime::from_utc(
+                            NaiveDateTime::from_timestamp(0, 0),
+                            Utc,
+                        )))
                         .captchaid("captchaid")
                         .captchaword("captchaword")
                         .contentformat("ctfmt")
@@ -54,7 +59,7 @@ fn make_url_bench(c: &mut Criterion) {
                         .tags(vec!["a".into(), "b".into()])
                         .build(),
                 );
-                
+
                 wiki::api::mkurl("https://en.wikipedia.org/w/api.php".parse().unwrap(), main)
             })
         });

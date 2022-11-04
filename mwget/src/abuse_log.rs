@@ -12,7 +12,7 @@ use regex_syntax::ast::{Ast, Span};
 use serde::Deserialize;
 use tokio::task::JoinHandle;
 use tracing::warn;
-use wiki::api::{AbuseLog, QueryResponse};
+use wiki::{api::{AbuseLog, QueryResponse}, builder::SiteBuilder};
 use wiki::req::abuse_log::{AbuseLogProp, ListAbuseLog};
 use wiki::req::{Limit, QueryList};
 use wiki::{Bot, BotPassword, Site};
@@ -122,13 +122,12 @@ pub async fn search(bot: &Bot, filter: String, re: regex::Regex) -> wiki::Result
 }
 
 pub async fn main() -> crate::Result<()> {
-    let site = Site::enwiki();
-    let bot = site
-        .login(
-            BotPassword::new("ScannerBot@RustWiki", include_str!("../../veryverysecret")), // BotPassword::new("0xDeadbeef@Testing", include_str!("../verysecret")),
+    let bot = SiteBuilder::enwiki()
+        .oauth(
+            include_str!("../../bot_oauth.txt.secret")
         )
-        .await
-        .map_err(|(_, e)| e)?;
+        .build()
+        .await?;
     let s = include_str!("test.re");
     let mut parser = Parser::new();
     let ast = parser.parse(s)?;

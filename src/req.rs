@@ -371,7 +371,7 @@ pub enum QueryMeta {
 #[derive(WriteUrl, Clone)]
 #[wp(prepend_all = "ui")]
 pub struct MetaUserInfo {
-    pub prop: EnumSet<UserInfoProp>,
+    pub prop: Option<EnumSet<UserInfoProp>>,
 }
 
 #[derive(WriteUrl, Clone)]
