@@ -1,0 +1,26 @@
+name: CI
+on: [push, pull_request]
+jobs:
+  ci:
+    name: Rust
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v2
+      - uses: actions-rs/toolchain@v1
+      - uses: actions-rs/cargo@v1
+        with:
+          command: clippy
+          args: --release --all-features
+      - uses: actions-rs/cargo@v1
+        with:
+          command: build
+          args: --release --all-features
+      - uses: actions-rs/cargo@v1
+        with:
+          command: fmt
+          args: --check
+  cargo-deny:
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v2
+    - uses: EmbarkStudios/cargo-deny-action@v1

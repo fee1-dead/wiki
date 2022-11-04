@@ -1,0 +1,11 @@
+[licenses]
+unlicensed = "deny"
+allow-osi-fsf-free = "neither"
+copyleft = "deny"
+confidence-threshold = 0.93
+allow = ["Apache-2.0", "MIT", "Unicode-DFS-2016", "BSD-3-Clause"]
+
+[advisories]
+ignore = [
+    "RUSTSEC-2020-0071", # can't do anything about it
+]
