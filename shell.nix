@@ -1,5 +1,5 @@
-with import <nixpkgs> {};
-stdenv.mkDerivation {
-  name = "wiki-env";
-  buildInputs = [ pkg-config openssl gcc cargo-deny ];
+{ pkgs ? import <nixpkgs> { } }:
+with pkgs;
+mkShell {
+  buildInputs = [ pkg-config openssl gcc ];
 }
