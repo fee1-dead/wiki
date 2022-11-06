@@ -39,7 +39,7 @@ pub(crate) mod sealed {
 }
 
 pub struct Site<T: sealed::Access = AnonymousAccess> {
-    client: reqwest::Client,
+    pub client: reqwest::Client,
     url: Url,
     acc: PhantomData<T>,
 }
