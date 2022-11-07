@@ -11,6 +11,7 @@ pub struct Parse {
     pub redirects: bool,
     pub oldid: Option<u64>,
     pub prop: ParseProp,
+    pub preview: bool,
 }
 
 wikiproc::bitflags! {

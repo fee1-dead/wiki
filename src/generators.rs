@@ -4,7 +4,6 @@ use std::mem::take;
 use std::pin::Pin;
 use std::task::{Context, Poll};
 
-use futures_util::future::BoxFuture;
 use futures_util::Stream;
 use reqwest::{Client, Url};
 use serde::de::DeserializeOwned;
@@ -12,24 +11,18 @@ use serde_json::Value;
 use tracing::{trace, trace_span};
 
 use crate::api::{
-    BasicSearchResult, MaybeContinue, RecentChangesResult, RequestBuilderExt, Revisions, SlotsMain,
+    BasicSearchResult, MaybeContinue, RecentChangesResult, RequestBuilderExt, Revisions, SlotsMain, BoxFuture,
 };
 use crate::req::rc::ListRc;
 use crate::req::{self, ListSearch, Main, Query, QueryList};
 use crate::sealed::Access;
 use crate::{api, Site};
 
-pub type BoxReqFuture = BoxFuture<'static, reqwest::Result<reqwest::Response>>;
+pub type BoxReqFuture = BoxFuture<reqwest::Result<reqwest::Response>>;
 pub type BoxRecvFuture =
-    BoxFuture<'static, reqwest::Result<api::QueryResponse<Revisions<SlotsMain>>>>;
+    BoxFuture<reqwest::Result<api::QueryResponse<Revisions<SlotsMain>>>>;
 
-pub type ResponseFuture<G> = Pin<
-    Box<
-        dyn Future<Output = crate::Result<MaybeContinue<<G as WikiGenerator>::Response>>>
-            + Send
-            + Sync,
-    >,
->;
+pub type ResponseFuture<G> = BoxFuture<crate::Result<MaybeContinue<<G as WikiGenerator>::Response>>>;
 
 #[derive(Default)]
 #[pin_project::pin_project(project = StateProj)]

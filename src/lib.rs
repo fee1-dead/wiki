@@ -1,14 +1,14 @@
 use std::fmt;
 use std::marker::PhantomData;
-use std::pin::Pin;
 
-use api::{CsrfToken, QueryAllGenerator, RequestBuilderExt, Token};
-use futures_util::Future;
+use api::{CsrfToken, QueryAllGenerator, RequestBuilderExt, Token, BoxFuture};
+use deterministic::IsMain;
 use generators::GeneratorStream;
 use req::{Main, SerializeAdaptor};
 use reqwest::header::{HeaderMap, HeaderValue, InvalidHeaderValue};
 use reqwest::{Client, RequestBuilder, Url};
 use serde_json::Value;
+use tracing::debug;
 
 use crate::generators::WikiGenerator;
 
@@ -17,6 +17,7 @@ extern crate self as wiki;
 pub mod api;
 mod boring_impls;
 pub mod builder;
+pub mod deterministic;
 pub mod events;
 pub mod generators;
 pub mod macro_support;
@@ -110,6 +111,17 @@ impl<A: sealed::Access> Site<A> {
         self.client.get(url)
     }
 
+    pub async fn get_d<T: IsMain>(&self, m: T) -> Result<T::Output> {
+        let mut q = crate::url::Simple::default();
+        if let Err(e) = m.ser(&mut q) {
+            match e {}
+        }
+        let mut url = self.url.clone();
+        url.set_query(Some(&q.0));
+        debug!(%url, "GET");
+        Ok(self.client.get(url).send_parse().await?)
+    }
+
     pub fn post(&self, action: req::Action) -> RequestBuilder {
         let main = Main {
             action,
@@ -120,11 +132,11 @@ impl<A: sealed::Access> Site<A> {
             .form(&SerializeAdaptor(main))
     }
 
-    pub fn get_csrf_token(&self) -> Pin<Box<dyn Future<Output = Result<CsrfToken>> + Send + Sync>> {
+    pub fn get_csrf_token(&self) -> BoxFuture<Result<CsrfToken>> {
         self.get_token()
     }
 
-    pub fn get_token<T: Token>(&self) -> Pin<Box<dyn Future<Output = Result<T>> + Send + Sync>> {
+    pub fn get_token<T: Token>(&self) -> BoxFuture<Result<T>> {
         let url = self.mkurl(Main {
             action: req::Action::Query(req::Query {
                 meta: Some(req::QueryMeta::Tokens { type_: T::types() }.into()),
@@ -178,13 +190,14 @@ impl Site {
         let url: Url = api_url.parse()?;
         assert!(url.query().is_none());
         let mut client = Client::builder();
-        #[cfg(feature = "default")]
+        #[cfg(not(target_arch = "wasm32"))]
         {
             client = client.cookie_store(true).user_agent(UA);
         }
-        let client = client.build()?;
         let mut headers = HeaderMap::new();
         headers.insert("Api-User-Agent", HeaderValue::from_static(UA));
+        client = client.default_headers(headers);
+        let client = client.build()?;
 
         Ok(Site {
             client,

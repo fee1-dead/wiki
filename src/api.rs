@@ -217,10 +217,10 @@ mod sealed {
 pub trait RequestBuilderExt: Sized + sealed::Sealed {
     fn send_and_report_err(
         self,
-    ) -> Pin<Box<dyn Future<Output = crate::Result<Value>> + Send + Sync>>;
+    ) -> BoxFuture<crate::Result<Value>>;
     fn send_parse<D: DeserializeOwned>(
         self,
-    ) -> Pin<Box<dyn Future<Output = crate::Result<D>> + Send + Sync>>
+    ) -> BoxFuture<crate::Result<D>>
     where
         Self: Send + Sync + 'static,
     {
@@ -231,10 +231,16 @@ pub trait RequestBuilderExt: Sized + sealed::Sealed {
     }
 }
 
+#[cfg(not(target_arch = "wasm32"))]
+pub type BoxFuture<T> = Pin<Box<dyn Future<Output = T> + Send + Sync>>;
+
+#[cfg(target_arch = "wasm32")]
+pub type BoxFuture<T> = Pin<Box<dyn Future<Output = T>>>;
+
 impl RequestBuilderExt for reqwest::RequestBuilder {
     fn send_and_report_err(
         self,
-    ) -> Pin<Box<dyn Future<Output = crate::Result<Value>> + Send + Sync>> {
+    ) -> BoxFuture<crate::Result<Value>> {
         Box::pin(async {
             let r = self.send().await?;
             let mut v = r.json::<Value>().await?;

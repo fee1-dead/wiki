@@ -96,18 +96,21 @@ pub struct OresScores {
 }
 
 impl ReqwestSseStream<RecentChangeEvent> {
+    #[cfg(not(target_arch = "wasm32"))]
     pub async fn recent_changes() -> crate::Result<Self> {
         Self::new("https://stream.wikimedia.org/v2/stream/recentchange").await
     }
 }
 
 impl ReqwestSseStream<RevisionScoreEvent> {
+    #[cfg(not(target_arch = "wasm32"))]
     pub async fn revision_scores() -> crate::Result<Self> {
         Self::new("https://stream.wikimedia.org/v2/stream/revision-score").await
     }
 }
 
 impl<C> ReqwestSseStream<C> {
+    #[cfg(not(target_arch = "wasm32"))]
     pub async fn new(url: &str) -> crate::Result<Self> {
         let res = reqwest::get(url).await?;
         let f: Tr = |e| io::Error::new(io::ErrorKind::Other, e);
