@@ -11,7 +11,8 @@ use serde_json::Value;
 use tracing::{trace, trace_span};
 
 use crate::api::{
-    BasicSearchResult, MaybeContinue, RecentChangesResult, RequestBuilderExt, Revisions, SlotsMain, BoxFuture,
+    BasicSearchResult, BoxFuture, MaybeContinue, RecentChangesResult, RequestBuilderExt, Revisions,
+    SlotsMain,
 };
 use crate::req::rc::ListRc;
 use crate::req::{self, ListSearch, Main, Query, QueryList};
@@ -19,10 +20,10 @@ use crate::sealed::Access;
 use crate::{api, Site};
 
 pub type BoxReqFuture = BoxFuture<reqwest::Result<reqwest::Response>>;
-pub type BoxRecvFuture =
-    BoxFuture<reqwest::Result<api::QueryResponse<Revisions<SlotsMain>>>>;
+pub type BoxRecvFuture = BoxFuture<reqwest::Result<api::QueryResponse<Revisions<SlotsMain>>>>;
 
-pub type ResponseFuture<G> = BoxFuture<crate::Result<MaybeContinue<<G as WikiGenerator>::Response>>>;
+pub type ResponseFuture<G> =
+    BoxFuture<crate::Result<MaybeContinue<<G as WikiGenerator>::Response>>>;
 
 #[derive(Default)]
 #[pin_project::pin_project(project = StateProj)]

@@ -16,7 +16,8 @@ mod sealed {
 
     pub trait Action: WriteUrlValue + Query {}
     pub trait Main: WriteUrlParams + Query {}
-    impl<const A: usize, const B: usize, T: Action> Main for super::Main<A, B, T> where
+    impl<const A: usize, const B: usize, T: Action> Main for super::Main<A, B, T>
+    where
         (): UsizeBool<A> + UsizeBool<B>,
         T: WriteUrlParams,
     {
@@ -28,8 +29,8 @@ mod sealed {
     {
     }
 }
-use sealed as s;
 pub use s::Main as IsMain;
+use sealed as s;
 
 pub mod action {
     use serde::Deserialize;

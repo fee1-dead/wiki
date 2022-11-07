@@ -1,7 +1,7 @@
 use std::fmt;
 use std::marker::PhantomData;
 
-use api::{CsrfToken, QueryAllGenerator, RequestBuilderExt, Token, BoxFuture};
+use api::{BoxFuture, CsrfToken, QueryAllGenerator, RequestBuilderExt, Token};
 use deterministic::IsMain;
 use generators::GeneratorStream;
 use req::{Main, SerializeAdaptor};
