@@ -14,7 +14,11 @@ use crate::req::{self, Main, PageSpec, TokenType};
 use crate::res::PageResponse;
 use crate::sealed::Access;
 use crate::url::WriteUrlParams;
+
 use crate::Result;
+
+#[cfg(target_arch = "wasm32")]
+use crate::url::{TriStr, UrlParamWriter};
 
 #[macro_export]
 macro_rules! basic {
@@ -189,6 +193,11 @@ pub fn mkurl(mut url: Url, m: Main) -> Url {
     if let Err(e) = m.ser(&mut q) {
         match e {}
     }
+    // todo wasi does not need this
+    #[cfg(target_arch = "wasm32")]
+    {
+        q.add(TriStr::Static("origin"), TriStr::Static("*"));
+    }
     url.set_query(Some(&q.0));
     debug!(%url, "GET");
     url
@@ -204,6 +213,11 @@ pub fn mkurl_with_ext(
         match e {}
     }
     q.add_serde(ext)?;
+    // todo wasi does not need this
+    #[cfg(target_arch = "wasm32")]
+    {
+        q.add(TriStr::Static("origin"), TriStr::Static("*"));
+    }
     url.set_query(Some(&q.0));
     debug!(%url, "GET");
     Ok(url)
