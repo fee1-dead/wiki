@@ -7,6 +7,7 @@ use bytemuck::TransparentWrapper;
 use serde::ser::SerializeSeq;
 use wikiproc::WriteUrl;
 
+use crate::api::RequestBuilderExt;
 use crate::macro_support::{
     BufferedName, NamedEnum, TriStr, UrlParamWriter, WriteUrlParams, WriteUrlValue,
 };
@@ -64,6 +65,12 @@ pub enum Limit {
     Max,
     Value(usize),
     None,
+}
+
+impl Default for Limit {
+    fn default() -> Self {
+        Self::None
+    }
 }
 
 impl WriteUrlValue for Limit {
@@ -343,6 +350,7 @@ pub struct Query {
 pub enum QueryList {
     Search(ListSearch),
     RecentChanges(rc::ListRc),
+    AbuseFilters(abuse_log::ListAbuseFilters),
     AbuseLog(abuse_log::ListAbuseLog),
     LogEvents(events::ListLogEvents),
     UserContribs(contribs::ListUserContribs),
@@ -387,7 +395,7 @@ pub enum QueryProp {
 #[derive(WriteUrl, Clone)]
 #[wp(prepend_all = "rv")]
 pub struct QueryPropRevisions {
-    pub prop: EnumSet<RvProp>,
+    pub prop: RvProp,
     pub slots: EnumSet<RvSlot>,
     pub limit: Limit,
 }
@@ -405,25 +413,26 @@ pub struct SearchGenerator {
     pub offset: Option<NonZeroU32>,
 }
 
-#[derive(WriteUrl, Clone)]
-pub enum RvProp {
-    Comment,
-    Content,
-    ContentModel,
-    Flagged,
-    Flags,
-    Ids,
-    OresScores,
-    ParsedComment,
-    Roles,
-    Sha1,
-    Size,
-    SlotSha1,
-    SlotSize,
-    Tags,
-    Timestamp,
-    User,
-    UserId,
+wikiproc::bitflags! {
+    pub struct RvProp: u32 {
+        const CONTENT = 1 << 0;
+        const COMMENT = 1 << 1;
+        const CONTENTMODEL = 1 << 2;
+        const FLAGGED = 1 << 3;
+        const FLAGS = 1 << 4;
+        const IDS = 1 << 5;
+        const ORESSCORES = 1 << 6;
+        const PARSEDCOMMENT = 1 << 7;
+        const ROLES = 1 << 8;
+        const SHA1 = 1 << 9;
+        const SLOTSHA1 = 1 << 10;
+        const SIZE = 1 << 11;
+        const SLOTSIZE = 1 << 12;
+        const TAGS = 1 << 13;
+        const TIMESTAMP = 1 << 14;
+        const USER = 1 << 15;
+        const USERID = 1 << 16;
+    }
 }
 
 #[derive(WriteUrl, Clone)]
@@ -495,7 +504,8 @@ pub struct Edit {
 }
 
 #[derive(Clone, Default)]
-pub struct EditBuilder {
+pub struct EditBuilder<Bot> {
+    access__: Bot,
     spec: Option<PageSpec>,
     section: Option<EditSection>,
     text: Option<String>,
@@ -557,11 +567,126 @@ macro_rules! builder_fns {
     };
 }
 
-impl EditBuilder {
+impl<A: crate::sealed::Access> EditBuilder<crate::Site<A>> {
+    pub fn with_access(bot: crate::Site<A>) -> Self {
+        Self {
+            access__: bot,
+            spec: None,
+            section: None,
+            text: None,
+            summary: None,
+            tags: None,
+            minor: false,
+            notminor: false,
+            bot: false,
+            baserevid: None,
+            basetimestamp: None,
+            starttimestamp: None,
+            recreate: false,
+            createonly: false,
+            nocreate: false,
+            watchlist: None,
+            watchlistexpiry: None,
+            md5: None,
+            prependtext: None,
+            appendtext: None,
+            undo: None,
+            undoafter: None,
+            redirect: false,
+            contentformat: None,
+            contentmodel: None,
+            token: None,
+            captchaword: None,
+            captchaid: None,
+        }
+    }
+
+    pub fn into_parts(self) -> (crate::Site<A>, EditBuilder<()>) {
+        let EditBuilder {
+            access__,
+            spec,
+            section,
+            text,
+            summary,
+            tags,
+            minor,
+            notminor,
+            bot,
+            baserevid,
+            basetimestamp,
+            starttimestamp,
+            recreate,
+            createonly,
+            nocreate,
+            watchlist,
+            watchlistexpiry,
+            md5,
+            prependtext,
+            appendtext,
+            undo,
+            undoafter,
+            redirect,
+            contentformat,
+            contentmodel,
+            token,
+            captchaword,
+            captchaid,
+        } = self;
+        (
+            access__,
+            EditBuilder {
+                access__: (),
+                spec,
+                section,
+                text,
+                summary,
+                tags,
+                minor,
+                notminor,
+                bot,
+                baserevid,
+                basetimestamp,
+                starttimestamp,
+                recreate,
+                createonly,
+                nocreate,
+                watchlist,
+                watchlistexpiry,
+                md5,
+                prependtext,
+                appendtext,
+                undo,
+                undoafter,
+                redirect,
+                contentformat,
+                contentmodel,
+                token,
+                captchaword,
+                captchaid,
+            },
+        )
+    }
+
+    pub async fn send(self) -> crate::Result<()> {
+        // TODO handle errors/conflicts
+        let (access, builder) = self.into_parts();
+        access
+            .post(Action::Edit(
+                builder.token(access.get_csrf_token().await?.token).build(),
+            ))
+            .send_and_report_err()
+            .await?;
+        Ok(())
+    }
+}
+
+impl EditBuilder<()> {
     pub fn new() -> Self {
         Self::default()
     }
+}
 
+impl<T> EditBuilder<T> {
     pub fn build(self) -> Edit {
         self.try_build().expect("expected page spec and token")
     }
@@ -569,6 +694,7 @@ impl EditBuilder {
     pub fn try_build(self) -> Option<Edit> {
         match self {
             EditBuilder {
+                access__: _,
                 spec: Some(spec),
                 section,
                 text,

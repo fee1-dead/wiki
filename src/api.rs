@@ -14,11 +14,9 @@ use crate::req::{self, Main, PageSpec, TokenType};
 use crate::res::PageResponse;
 use crate::sealed::Access;
 use crate::url::WriteUrlParams;
-
-use crate::Result;
-
 #[cfg(target_arch = "wasm32")]
 use crate::url::{TriStr, UrlParamWriter};
+use crate::Result;
 
 #[macro_export]
 macro_rules! basic {
@@ -49,11 +47,16 @@ macro_rules! basic {
 }
 
 basic! {
+    RevisionSlots { slots: SlotsMain }
     SlotsMain { main: Slot }
     QueryResponse { query }
+    Pages { T => pages: Vec<T> }
     AbuseLog { T => abuse_log["abuselog"]: Vec<T> }
+    AbuseFilters { T => abuse_filters["abusefilters"]: Vec<T> }
+    Pattern { pattern: String }
     Search { T => search: Vec<T> }
     RecentChanges { T => recent_changes["recentchanges"]: Vec<T> }
+    RevisionsList { T => revisions: Vec<T> }
 }
 
 #[derive(Deserialize, PartialEq, Eq, Debug)]
@@ -139,11 +142,6 @@ token!(CsrfToken = "csrftoken" = [TokenType::CSRF] + token);
 
 pub trait Token: DeserializeOwned {
     fn types() -> TokenType;
-}
-
-pub trait TokenExt: Token {
-    const LEN: usize;
-    const QUERY: &'static str;
 }
 
 #[derive(Deserialize, Debug)]

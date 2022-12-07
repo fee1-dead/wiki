@@ -7,7 +7,7 @@ version = "0.0.4"
 edition = "2021"
 
 [workspace]
-members = ["wikiproc", "mwget", "scannerbot"]
+members = ["wikiproc", "mwget", "scannerbot", "abuselog_analyzer"]
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 

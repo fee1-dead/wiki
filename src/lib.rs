@@ -3,8 +3,10 @@ use std::marker::PhantomData;
 
 use api::{BoxFuture, CsrfToken, QueryAllGenerator, RequestBuilderExt, Token};
 use deterministic::IsMain;
+use futures_util::future::MapOk;
+use futures_util::TryFutureExt;
 use generators::GeneratorStream;
-use req::{Main, SerializeAdaptor};
+use req::{Main, PageSpec, SerializeAdaptor};
 use reqwest::header::{HeaderMap, HeaderValue, InvalidHeaderValue};
 use reqwest::{Client, RequestBuilder, Url};
 use serde_json::Value;
@@ -82,6 +84,8 @@ pub enum Error {
     MediaWiki(serde_json::Value),
     #[error("failed to log in")]
     Unauthorized,
+    #[error("{0}")]
+    CustomStatic(&'static str),
 }
 
 impl From<http_types::Error> for Error {
@@ -94,6 +98,10 @@ pub type Result<T, E = Error> = std::result::Result<T, E>;
 
 pub type Bot = Site<AuthorizedAccess>;
 
+type TokensFullResponse<T> = api::QueryResponse<api::Tokens<T>>;
+type TokensFuture<T> =
+    MapOk<BoxFuture<Result<TokensFullResponse<T>>>, fn(TokensFullResponse<T>) -> T>;
+
 impl<A: sealed::Access> Site<A> {
     pub fn mkurl(&self, m: Main) -> Url {
         crate::api::mkurl(self.url.clone(), m)
@@ -101,6 +109,48 @@ impl<A: sealed::Access> Site<A> {
 
     pub fn mkurl_with_ext(&self, m: Main, ext: Value) -> Result<Url, serde_urlencoded::ser::Error> {
         crate::api::mkurl_with_ext(self.url.clone(), m, ext)
+    }
+
+    /// quick and easy way to get content by page id or title.
+    pub async fn fetch_content(&self, page: impl Into<PageSpec>) -> Result<String> {
+        let mut q = req::Query {
+            prop: Some(
+                req::QueryProp::Revisions(req::QueryPropRevisions {
+                    prop: req::RvProp::CONTENT,
+                    slots: req::RvSlot::Main.into(),
+                    limit: req::Limit::Value(1),
+                })
+                .into(),
+            ),
+            ..Default::default()
+        };
+        // TODO maybe use page spec on query??
+        match page.into() {
+            PageSpec::PageId(id) => q.pageids = Some(vec![id]),
+            PageSpec::Title(title) => q.titles = Some(vec![title]),
+        }
+        let x: api::QueryResponse<api::Pages<api::RevisionsList<api::RevisionSlots>>> =
+            self.get(req::Action::Query(q)).send_parse().await?;
+        let page = x
+            .query
+            .pages
+            .into_iter()
+            .next()
+            .ok_or(Error::CustomStatic("not enough pages"))?;
+        let rev = page
+            .revisions
+            .into_iter()
+            .next()
+            .ok_or(Error::CustomStatic("not enough revisions"))?;
+        Ok(rev.slots.main.content)
+    }
+
+    pub fn build_edit(&self, page: impl Into<PageSpec>) -> req::EditBuilder<Self> {
+        let q = req::EditBuilder::with_access(self.clone());
+        match page.into() {
+            PageSpec::PageId(id) => q.page_id(id),
+            PageSpec::Title(title) => q.title(title),
+        }
     }
 
     pub fn get(&self, action: req::Action) -> RequestBuilder {
@@ -132,11 +182,11 @@ impl<A: sealed::Access> Site<A> {
             .form(&SerializeAdaptor(main))
     }
 
-    pub fn get_csrf_token(&self) -> BoxFuture<Result<CsrfToken>> {
+    pub fn get_csrf_token(&self) -> TokensFuture<CsrfToken> {
         self.get_token()
     }
 
-    pub fn get_token<T: Token>(&self) -> BoxFuture<Result<T>> {
+    pub fn get_token<T: Token>(&self) -> TokensFuture<T> {
         let url = self.mkurl(Main {
             action: req::Action::Query(req::Query {
                 meta: Some(req::QueryMeta::Tokens { type_: T::types() }.into()),
@@ -145,7 +195,10 @@ impl<A: sealed::Access> Site<A> {
             format: req::Format::Json { formatversion: 2 },
         });
 
-        self.client.get(url).send_parse()
+        self.client
+            .get(url)
+            .send_parse()
+            .map_ok(|x: api::QueryResponse<api::Tokens<T>>| x.query.tokens)
     }
 
     pub fn query_all(&self, query: req::Query) -> GeneratorStream<QueryAllGenerator<A>> {
