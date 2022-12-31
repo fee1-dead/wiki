@@ -348,7 +348,7 @@ pub struct Query {
 
 #[derive(WriteUrl, Clone)]
 pub enum QueryList {
-    Search(ListSearch),
+    Search(search::ListSearch),
     RecentChanges(rc::ListRc),
     AbuseFilters(abuse_log::ListAbuseFilters),
     AbuseLog(abuse_log::ListAbuseLog),
@@ -357,13 +357,7 @@ pub enum QueryList {
     CategoryMembers(category_members::ListCategoryMembers),
 }
 
-#[derive(WriteUrl, Clone)]
-#[wp(prepend_all = "sr")]
-pub struct ListSearch {
-    pub search: String,
-    pub limit: Limit,
-}
-
+pub mod search;
 pub mod rc;
 
 #[derive(WriteUrl, Clone)]

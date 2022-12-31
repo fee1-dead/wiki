@@ -1,3 +1,4 @@
+use std::collections::HashMap;
 use std::fs::File;
 
 use chrono::{DateTime, Duration, Utc};
@@ -243,7 +244,7 @@ async fn parse_filters(bot: &Bot, cfg: Vec<FilterDetails>) -> color_eyre::Result
     Ok(ParsedFilters { filters, cases_to_check })
 }
 
-pub async fn catch_up() -> color_eyre::Result<()> {
+pub async fn catch_up() -> color_eyre::Result<JsonOutput> {
     let bot = SiteBuilder::enwiki()
         .oauth(include_str!("../../bot_oauth.txt.secret"))
         .build()
@@ -350,11 +351,23 @@ pub async fn catch_up() -> color_eyre::Result<()> {
 
     serde_json::to_writer_pretty(file, &json)?;
 
-    Ok(())
+    Ok(json)
+}
+
+pub struct CaseReport {
+    pub regex: String,
+    pub last_hit: u64,
+    pub last_hit_date: String,
+}
+
+pub struct Analyzed {
+    pub filters: HashMap<u32, HashMap<String, CaseReport>>,
 }
 
 pub async fn main() -> color_eyre::Result<()> {
-    catch_up().await?;
+    let json = catch_up().await?;
+
+    
 
     Ok(())
 }
