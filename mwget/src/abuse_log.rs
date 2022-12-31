@@ -71,7 +71,7 @@ pub struct Match {
 
 #[derive(Deserialize, Serialize, Clone, Debug, JsonSchema)]
 pub struct JsonOutput {
-    /// Report runs. 
+    /// Report runs.
     pub runs: Vec<Run>,
 }
 
@@ -168,8 +168,13 @@ pub async fn get_time(bot: &Bot, id: u64) -> color_eyre::Result<DateTime<Utc>> {
         ..Default::default()
     };
 
-    let mut at: AbuseLogTimeResponse =  bot.get(Action::Query(q)).send_parse().await?;
-    Ok(at.query.abuse_log.pop().context("could not find abuse log entry")?.timestamp)
+    let mut at: AbuseLogTimeResponse = bot.get(Action::Query(q)).send_parse().await?;
+    Ok(at
+        .query
+        .abuse_log
+        .pop()
+        .context("could not find abuse log entry")?
+        .timestamp)
 }
 
 pub struct ParsedFilters {
@@ -231,7 +236,9 @@ async fn parse_filters(bot: &Bot, cfg: Vec<FilterDetails>) -> color_eyre::Result
                 },
                 // N.B: (?<!\\d|#)(?:69\\D*420|420\\D*69|(?:69\\D{0,50}){3,})(?!\\d)
                 // has a LOT of back off. It exceeded the default limit of one million.
-                RegexBuilder::new(&case).backtrack_limit(10_000_000).build()?,
+                RegexBuilder::new(&case)
+                    .backtrack_limit(10_000_000)
+                    .build()?,
             ));
             cases.push(case);
         }
@@ -241,7 +248,10 @@ async fn parse_filters(bot: &Bot, cfg: Vec<FilterDetails>) -> color_eyre::Result
         });
     }
 
-    Ok(ParsedFilters { filters, cases_to_check })
+    Ok(ParsedFilters {
+        filters,
+        cases_to_check,
+    })
 }
 
 pub async fn catch_up() -> color_eyre::Result<JsonOutput> {
@@ -270,7 +280,10 @@ pub async fn catch_up() -> color_eyre::Result<JsonOutput> {
     let cfg: Vec<FilterDetails> = serde_json::from_str(config)?;
     info!("got config: {cfg:#?}");
 
-    let ParsedFilters { filters, cases_to_check } = parse_filters(&bot, cfg).await?;
+    let ParsedFilters {
+        filters,
+        cases_to_check,
+    } = parse_filters(&bot, cfg).await?;
 
     // read previous output
     let json: JsonOutput = serde_json::from_reader(File::open("result.json")?)?;
@@ -281,7 +294,7 @@ pub async fn catch_up() -> color_eyre::Result<JsonOutput> {
     } else {
         Utc::now() - Duration::weeks(52)
     };
-    
+
     let (send, mut receive) = tokio::sync::mpsc::channel(10);
 
     let new_filters = filters.clone();
@@ -311,11 +324,7 @@ pub async fn catch_up() -> color_eyre::Result<JsonOutput> {
                 let ccnormed = crate::ccnorm::ccnorm(&entry);
                 let mut matches = vec![];
                 for (m, re) in cases.clone() {
-                    let entry = if m.is_ccnorm {
-                        &ccnormed
-                    } else {
-                        &entry
-                    };
+                    let entry = if m.is_ccnorm { &ccnormed } else { &entry };
                     // info!("{}", re.as_str());
                     if re.is_match(entry).unwrap() {
                         matches.push(m)
@@ -333,8 +342,9 @@ pub async fn catch_up() -> color_eyre::Result<JsonOutput> {
             v.push(log);
         }
         v
-    }).map_err(|x| x.into());
- 
+    })
+    .map_err(|x| x.into());
+
     let (_, _, entries) = tokio::try_join!(flatten(read), flatten(write), entry_out)?;
 
     let run = Run {
@@ -366,8 +376,6 @@ pub struct Analyzed {
 
 pub async fn main() -> color_eyre::Result<()> {
     let json = catch_up().await?;
-
-    
 
     Ok(())
 }

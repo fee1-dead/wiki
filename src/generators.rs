@@ -15,7 +15,8 @@ use crate::api::{
     SlotsMain,
 };
 use crate::req::rc::ListRc;
-use crate::req::{self, ListSearch, Main, Query, QueryList};
+use crate::req::search::{ListSearch, SearchInfo, SearchProp};
+use crate::req::{self, Main, Query, QueryList};
 use crate::sealed::Access;
 use crate::{api, Site};
 
@@ -226,6 +227,8 @@ impl<A: Access> WikiGenerator for SearchGenerator<A> {
                 QueryList::Search(ListSearch {
                     search: self.search.clone(),
                     limit: req::Limit::Max,
+                    prop: SearchProp::empty(),
+                    info: SearchInfo::empty(),
                 })
                 .into(),
             ),

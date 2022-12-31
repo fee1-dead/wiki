@@ -1,7 +1,6 @@
 use std::fmt::Debug;
 use std::hash::Hash;
 use std::mem::discriminant;
-use std::num::NonZeroU32;
 
 use bytemuck::TransparentWrapper;
 use serde::ser::SerializeSeq;
@@ -357,8 +356,8 @@ pub enum QueryList {
     CategoryMembers(category_members::ListCategoryMembers),
 }
 
-pub mod search;
 pub mod rc;
+pub mod search;
 
 #[derive(WriteUrl, Clone)]
 pub enum QueryMeta {
@@ -396,15 +395,7 @@ pub struct QueryPropRevisions {
 
 #[derive(WriteUrl, Clone)]
 pub enum QueryGenerator {
-    Search(SearchGenerator),
-}
-
-#[derive(WriteUrl, Clone)]
-#[wp(prepend_all = "gsr")]
-pub struct SearchGenerator {
-    pub search: String,
-    pub limit: Limit,
-    pub offset: Option<NonZeroU32>,
+    Search(search::SearchGenerator),
 }
 
 wikiproc::bitflags! {

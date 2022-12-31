@@ -1,4 +1,6 @@
-use wikiproc::{WriteUrl, bitflags};
+use std::num::NonZeroU32;
+
+use wikiproc::{bitflags, WriteUrl};
 
 use super::Limit;
 
@@ -7,6 +9,16 @@ use super::Limit;
 pub struct ListSearch {
     pub search: String,
     pub limit: Limit,
+    pub prop: SearchProp,
+    pub info: SearchInfo,
+}
+
+#[derive(WriteUrl, Clone)]
+#[wp(prepend_all = "gsr")]
+pub struct SearchGenerator {
+    pub search: String,
+    pub limit: Limit,
+    pub offset: Option<NonZeroU32>,
     pub prop: SearchProp,
     pub info: SearchInfo,
 }
