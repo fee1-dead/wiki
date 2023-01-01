@@ -21,6 +21,7 @@ pub struct SearchGenerator {
     pub offset: Option<NonZeroU32>,
     pub prop: SearchProp,
     pub info: SearchInfo,
+    pub namespace: String, // TODO enumfy
 }
 
 bitflags! {
