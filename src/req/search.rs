@@ -11,6 +11,7 @@ pub struct ListSearch {
     pub limit: Limit,
     pub prop: SearchProp,
     pub info: SearchInfo,
+    pub namespace: Option<String>, // TODO enumfy
 }
 
 #[derive(WriteUrl, Clone)]
@@ -21,7 +22,7 @@ pub struct SearchGenerator {
     pub offset: Option<NonZeroU32>,
     pub prop: SearchProp,
     pub info: SearchInfo,
-    pub namespace: String, // TODO enumfy
+    pub namespace: Option<String>, // TODO enumfy
 }
 
 bitflags! {

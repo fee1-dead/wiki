@@ -229,6 +229,7 @@ impl<A: Access> WikiGenerator for SearchGenerator<A> {
                     limit: req::Limit::Max,
                     prop: SearchProp::empty(),
                     info: SearchInfo::empty(),
+                    namespace: None,
                 })
                 .into(),
             ),
