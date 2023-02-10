@@ -13,6 +13,7 @@ use crate::macro_support::{
 use crate::types::MwTimestamp;
 use crate::url::{BitflaggedEnum, SerdeAdaptor};
 
+pub mod abuse_filter;
 pub mod abuse_log;
 pub mod block;
 pub mod category_members;
@@ -332,6 +333,7 @@ pub enum Action {
     Login(Login),
     Parse(parse::Parse),
     Block(block::Block),
+    AbuseFilterCheckMatch(abuse_filter::CheckMatch),
 }
 
 #[derive(WriteUrl, Default, Clone)]
