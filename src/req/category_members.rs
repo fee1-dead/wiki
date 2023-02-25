@@ -2,7 +2,7 @@ use serde::Deserialize;
 use wikiproc::{bitflags, WriteUrl};
 
 use super::{Limit, PageSpec};
-use crate::basic;
+use crate::build_response_type;
 
 #[derive(WriteUrl, Clone, Debug)]
 #[wp(prepend_all = "cm")]
@@ -46,7 +46,7 @@ pub struct CategoryMember {
     pub timestamp: Option<String>,
 }
 
-basic! {
+build_response_type! {
     #[derive(Clone)]
     CategoryMembersResponse { categorymembers: Vec<CategoryMember> }
 }

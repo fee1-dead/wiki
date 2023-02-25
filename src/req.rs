@@ -554,8 +554,8 @@ macro_rules! builder_fns {
     };
 }
 
-impl<A: crate::sealed::Access> EditBuilder<crate::Site<A>> {
-    pub fn with_access(bot: crate::Site<A>) -> Self {
+impl<A: crate::sealed::Access> EditBuilder<crate::Client<A>> {
+    pub fn with_access(bot: crate::Client<A>) -> Self {
         Self {
             access__: bot,
             spec: None,
@@ -588,7 +588,7 @@ impl<A: crate::sealed::Access> EditBuilder<crate::Site<A>> {
         }
     }
 
-    pub fn into_parts(self) -> (crate::Site<A>, EditBuilder<()>) {
+    pub fn into_parts(self) -> (crate::Client<A>, EditBuilder<()>) {
         let EditBuilder {
             access__,
             spec,

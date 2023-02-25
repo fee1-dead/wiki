@@ -1,3 +1,5 @@
+/// A crate for working with MediaWiki, mostly with the Action API.
+
 use std::fmt;
 use std::marker::PhantomData;
 
@@ -7,10 +9,13 @@ use futures_util::future::MapOk;
 use futures_util::TryFutureExt;
 use generators::GeneratorStream;
 use req::{Main, PageSpec, SerializeAdaptor};
-use reqwest::header::{HeaderMap, HeaderValue, InvalidHeaderValue};
-use reqwest::{Client, RequestBuilder, Url};
+use reqwest::header::InvalidHeaderValue;
+use reqwest::{RequestBuilder, Url};
 use serde_json::Value;
 use tracing::debug;
+
+#[cfg(target_arch = "wasm32")]
+use reqwest::header::{HeaderMap, HeaderValue};
 
 use crate::generators::WikiGenerator;
 
@@ -41,13 +46,13 @@ pub(crate) mod sealed {
     impl Access for super::AuthorizedAccess {}
 }
 
-pub struct Site<T: sealed::Access = AnonymousAccess> {
+pub struct Client<T: sealed::Access = AnonymousAccess> {
     pub client: reqwest::Client,
     url: Url,
     acc: PhantomData<T>,
 }
 
-impl<T: sealed::Access> Clone for Site<T> {
+impl<T: sealed::Access> Clone for Client<T> {
     fn clone(&self) -> Self {
         Self {
             client: self.client.clone(),
@@ -57,7 +62,7 @@ impl<T: sealed::Access> Clone for Site<T> {
     }
 }
 
-impl<T: sealed::Access> fmt::Debug for Site<T> {
+impl<T: sealed::Access> fmt::Debug for Client<T> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         f.debug_struct("Site")
             .field("client", &self.client)
@@ -96,22 +101,24 @@ impl From<http_types::Error> for Error {
 
 pub type Result<T, E = Error> = std::result::Result<T, E>;
 
-pub type Bot = Site<AuthorizedAccess>;
+pub type Bot = Client<AuthorizedAccess>;
 
 type TokensFullResponse<T> = api::QueryResponse<api::Tokens<T>>;
 type TokensFuture<T> =
     MapOk<BoxFuture<Result<TokensFullResponse<T>>>, fn(TokensFullResponse<T>) -> T>;
 
-impl<A: sealed::Access> Site<A> {
+impl<A: sealed::Access> Client<A> {
+    /// Create a URL for GET requests.
     pub fn mkurl(&self, m: Main) -> Url {
         crate::api::mkurl(self.url.clone(), m)
     }
 
+    /// Create a URL for GET request, with extra values in the query string. (could be from `continue`)
     pub fn mkurl_with_ext(&self, m: Main, ext: Value) -> Result<Url, serde_urlencoded::ser::Error> {
         crate::api::mkurl_with_ext(self.url.clone(), m, ext)
     }
 
-    /// quick and easy way to get content by page id or title.
+    /// Fetches the latest wikitext from a page based on page id or page title.
     pub async fn fetch_content(&self, page: impl Into<PageSpec>) -> Result<String> {
         let mut q = req::Query {
             prop: Some(
@@ -204,11 +211,11 @@ impl<A: sealed::Access> Site<A> {
     pub fn query_all(&self, query: req::Query) -> GeneratorStream<QueryAllGenerator<A>> {
         let m = Main::query(query);
 
-        fn clone(_: &Url, _: &Client, v: &Main) -> Main {
+        fn clone(_: &Url, _: &reqwest::Client, v: &Main) -> Main {
             v.clone()
         }
 
-        fn response(_: &Url, _: &Client, _: &Main, v: Value) -> Result<Vec<Value>> {
+        fn response(_: &Url, _: &reqwest::Client, _: &Main, v: Value) -> Result<Vec<Value>> {
             Ok(vec![v])
         }
 
@@ -238,21 +245,27 @@ const UA: &str = concat!(
     " (https://github.com/fee1-dead/wiki.rs ent3rm4n@gmail.com)"
 );
 
-impl Site {
+impl Client {
     pub fn new(api_url: &str) -> Result<Self> {
         let url: Url = api_url.parse()?;
         assert!(url.query().is_none());
-        let mut client = Client::builder();
+        let mut client = reqwest::Client::builder();
         #[cfg(not(target_arch = "wasm32"))]
         {
             client = client.cookie_store(true).user_agent(UA);
         }
-        let mut headers = HeaderMap::new();
-        headers.insert("Api-User-Agent", HeaderValue::from_static(UA));
-        client = client.default_headers(headers);
+        
+
+        #[cfg(target_arch = "wasm32")] {
+            let mut headers = HeaderMap::new();
+            headers.insert("Api-User-Agent", HeaderValue::from_static(UA));
+            client = client.default_headers(headers);
+        }
+        
+        
         let client = client.build()?;
 
-        Ok(Site {
+        Ok(Client {
             client,
             url,
             acc: PhantomData,
@@ -260,15 +273,15 @@ impl Site {
     }
 
     pub fn enwiki() -> Self {
-        Site::new("https://en.wikipedia.org/w/api.php").unwrap()
+        Client::new("https://en.wikipedia.org/w/api.php").unwrap()
     }
 
     pub fn test_wikipedia() -> Self {
-        Site::new("https://test.wikipedia.org/w/api.php").unwrap()
+        Client::new("https://test.wikipedia.org/w/api.php").unwrap()
     }
 
     pub fn test_miraheze() -> Self {
-        Site::new("https://publictestwiki.com/w/api.php").unwrap()
+        Client::new("https://publictestwiki.com/w/api.php").unwrap()
     }
 }
 

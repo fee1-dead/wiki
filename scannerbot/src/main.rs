@@ -1,22 +1,19 @@
 use std::collections::HashSet;
 use std::pin::Pin;
-use std::time::Duration;
 
-use chrono::{DateTime, NaiveDateTime, Utc};
 use futures_util::{Future, TryStreamExt};
 use serde::Deserialize;
-use serde_json::Value;
 use tracing_subscriber::EnvFilter;
 use wiki::api::{QueryResponse, RequestBuilderExt};
 use wiki::builder::SiteBuilder;
-use wiki::events::{EventMeta, OldNew, RecentChangeEvent};
+use wiki::events::{OldNew, RecentChangeEvent};
 use wiki::req::category_members::{
     CategoryMember, CategoryMembersProp, CategoryMembersResponse, CategoryMembersType,
     ListCategoryMembers,
 };
 use wiki::req::parse::{Parse as RParse, ParseProp};
-use wiki::req::{Action, Edit, EditBuilder, Limit, PageSpec, Query, QueryList};
-use wiki::{Bot, BotPassword, Site};
+use wiki::req::{Action, EditBuilder, Limit, PageSpec, Query, QueryList};
+use wiki::Bot;
 
 #[derive(Deserialize, Debug)]
 pub struct Link {

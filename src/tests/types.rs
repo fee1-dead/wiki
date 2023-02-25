@@ -19,8 +19,8 @@ fn works() -> Result<(), Box<dyn Error>> {
     let j = serde_json::to_value(Testing {
         time: DateTime::from_utc(
             NaiveDateTime::new(
-                NaiveDate::from_ymd(1337, 1, 3),
-                NaiveTime::from_hms(3, 7, 0),
+                NaiveDate::from_ymd_opt(1337, 1, 3).unwrap(),
+                NaiveTime::from_hms_opt(3, 7, 0).unwrap(),
             ),
             Utc,
         )

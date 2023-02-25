@@ -3,7 +3,7 @@ use std::future::Future;
 use std::pin::Pin;
 
 use futures_util::TryStreamExt;
-use reqwest::{Client, Url};
+use reqwest::Url;
 use serde::de::DeserializeOwned;
 use serde::Deserialize;
 use serde_json::Value;
@@ -19,11 +19,12 @@ use crate::url::{TriStr, UrlParamWriter};
 use crate::Result;
 
 #[macro_export]
-macro_rules! basic {
-    (@handle( $(#[$meta:meta])*  $i:ident { $name:ident: $ty:ty } )) => {
+macro_rules! build_response_type {
+    (@handle( $(#[$meta:meta])*  $i:ident { $name:ident$([$lit:literal])?: $ty:ty } )) => {
         #[derive(Deserialize, Debug)]
         $(#[$meta])*
         pub struct $i {
+            $(#[serde(rename = $lit)])?
             pub $name: $ty,
         }
     };
@@ -42,11 +43,11 @@ macro_rules! basic {
         }
     };
     ($( $(#[$meta:meta])* $ty:ident { $($tt:tt)* })*) => {
-        $(basic!(@handle( $(#[$meta])* $ty { $($tt)* }));)*
+        $(build_response_type!(@handle( $(#[$meta])* $ty { $($tt)* }));)*
     };
 }
 
-basic! {
+build_response_type! {
     RevisionSlots { slots: SlotsMain }
     SlotsMain { main: Slot }
     QueryResponse { query }
@@ -57,6 +58,8 @@ basic! {
     Search { T => search: Vec<T> }
     RecentChanges { T => recent_changes["recentchanges"]: Vec<T> }
     RevisionsList { T => revisions: Vec<T> }
+    AbuseFilterCheckMatchResult { result: bool }
+    AbuseFilterCheckMatchResponse { inner["abusefiltercheckmatch"]: AbuseFilterCheckMatchResult }
 }
 
 #[derive(Deserialize, PartialEq, Eq, Debug)]
@@ -259,7 +262,7 @@ impl RequestBuilderExt for reqwest::RequestBuilder {
     }
 }
 
-impl<A: Access> crate::Site<A> {
+impl<A: Access> crate::Client<A> {
     pub async fn get_tokens<T: Token>(&self) -> Result<T> {
         let res = self
             .client
@@ -274,8 +277,8 @@ impl<A: Access> crate::Site<A> {
 pub type QueryAllGenerator<A> = GenGen<
     A,
     Main,
-    fn(&Url, &Client, &Main) -> Main,
-    fn(&Url, &Client, &Main, Value) -> Result<Vec<Value>>,
+    fn(&Url, &reqwest::Client, &Main) -> Main,
+    fn(&Url, &reqwest::Client, &Main, Value) -> Result<Vec<Value>>,
     Value,
     Value,
 >;

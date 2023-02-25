@@ -5,14 +5,14 @@ use std::str::FromStr;
 
 use http_types::Url;
 use reqwest::header::{HeaderMap, HeaderValue, AUTHORIZATION};
-use reqwest::{Client, ClientBuilder};
+use reqwest::ClientBuilder;
 use serde_json::Value;
 use tracing::{debug, info};
 
 use crate::api::{LoginToken, QueryResponse, RequestBuilderExt, UserInfo, UserInfoInner};
 use crate::req::{self, Login, Main};
 use crate::sealed::Access;
-use crate::{AnonymousAccess, AuthorizedAccess, BotPassword, Result, Site, UA};
+use crate::{AnonymousAccess, AuthorizedAccess, BotPassword, Client, Result, UA};
 
 pub struct SiteBuilder<A: Access> {
     url: String,
@@ -33,7 +33,7 @@ impl<A: Access> SiteBuilder<A> {
 impl SiteBuilder<AnonymousAccess> {
     // creation of new sites. Only get anonymous access since not logged in.
     pub fn new(api_url: &str) -> Self {
-        let client = Client::builder();
+        let client = reqwest::Client::builder();
 
         Self {
             client,
@@ -83,7 +83,7 @@ impl SiteBuilder<AnonymousAccess> {
     }
 
     /// build anonymous access
-    pub fn build(mut self) -> Result<Site<AnonymousAccess>> {
+    pub fn build(mut self) -> Result<Client<AnonymousAccess>> {
         let url: Url = self.url.parse()?;
         assert!(url.query().is_none());
         let ua = self.user_agent.as_deref().unwrap_or(UA);
@@ -102,7 +102,7 @@ impl SiteBuilder<AnonymousAccess> {
             self.client = self.client.default_headers(headers);
         }
 
-        Ok(Site {
+        Ok(Client {
             client: self.client.build()?,
             url,
             acc: PhantomData,
@@ -112,7 +112,7 @@ impl SiteBuilder<AnonymousAccess> {
 
 impl SiteBuilder<AuthorizedAccess> {
     /// build by logging in.
-    pub async fn build(mut self) -> Result<Site<AuthorizedAccess>> {
+    pub async fn build(mut self) -> Result<Client<AuthorizedAccess>> {
         let url: Url = self.url.parse()?;
         assert!(url.query().is_none());
         let ua = self.user_agent.as_deref().unwrap_or(UA);
@@ -138,7 +138,7 @@ impl SiteBuilder<AuthorizedAccess> {
 
         self.client = self.client.default_headers(headers);
 
-        let site = Site {
+        let site = Client {
             client: self.client.build()?,
             url,
             acc: PhantomData,

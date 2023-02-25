@@ -5,7 +5,7 @@ use std::pin::Pin;
 use std::task::{Context, Poll};
 
 use futures_util::Stream;
-use reqwest::{Client, Url};
+use reqwest::Url;
 use serde::de::DeserializeOwned;
 use serde_json::Value;
 use tracing::{trace, trace_span};
@@ -18,7 +18,7 @@ use crate::req::rc::ListRc;
 use crate::req::search::{ListSearch, SearchInfo, SearchProp};
 use crate::req::{self, Main, Query, QueryList};
 use crate::sealed::Access;
-use crate::{api, Site};
+use crate::{api, Client};
 
 pub type BoxReqFuture = BoxFuture<reqwest::Result<reqwest::Response>>;
 pub type BoxRecvFuture = BoxFuture<reqwest::Result<api::QueryResponse<Revisions<SlotsMain>>>>;
@@ -134,7 +134,7 @@ pub trait WikiGenerator {
     type Item: 'static;
     type Response: DeserializeOwned;
     fn url(&self) -> &Url;
-    fn client(&self) -> &Client;
+    fn client(&self) -> &reqwest::Client;
     fn create_request(&self) -> Main;
     fn untangle_response(&self, res: Self::Response) -> crate::Result<Vec<Self::Item>>;
     fn into_stream(self) -> GeneratorStream<Self>
@@ -151,7 +151,7 @@ pub trait WikiGenerator {
 
 /// GENeric GENerator, use this to create your own continuable requests
 pub struct GenGen<Access: crate::sealed::Access, State, C, U, Response, Item> {
-    pub site: Site<Access>,
+    pub site: Client<Access>,
     pub state: State,
     create_request: C,
     untangle_response: U,
@@ -161,11 +161,11 @@ pub struct GenGen<Access: crate::sealed::Access, State, C, U, Response, Item> {
 impl<A, State, C, U, Response, Item> GenGen<A, State, C, U, Response, Item>
 where
     A: Access,
-    C: Fn(&Url, &Client, &State) -> Main,
-    U: Fn(&Url, &Client, &State, Response) -> crate::Result<Vec<Item>>,
+    C: Fn(&Url, &reqwest::Client, &State) -> Main,
+    U: Fn(&Url, &reqwest::Client, &State, Response) -> crate::Result<Vec<Item>>,
     Response: DeserializeOwned,
 {
-    pub fn new(site: Site<A>, state: State, create_request: C, untangle_response: U) -> Self {
+    pub fn new(site: Client<A>, state: State, create_request: C, untangle_response: U) -> Self {
         Self {
             site,
             state,
@@ -179,8 +179,8 @@ where
 impl<A, State, C, U, Response, Item> WikiGenerator for GenGen<A, State, C, U, Response, Item>
 where
     A: Access,
-    C: Fn(&Url, &Client, &State) -> Main,
-    U: Fn(&Url, &Client, &State, Response) -> crate::Result<Vec<Item>>,
+    C: Fn(&Url, &reqwest::Client, &State) -> Main,
+    U: Fn(&Url, &reqwest::Client, &State, Response) -> crate::Result<Vec<Item>>,
     Response: DeserializeOwned,
     Item: 'static,
 {
@@ -191,7 +191,7 @@ where
         &self.site.url
     }
 
-    fn client(&self) -> &Client {
+    fn client(&self) -> &reqwest::Client {
         &self.site.client
     }
 
@@ -205,7 +205,7 @@ where
 }
 
 pub struct SearchGenerator<A: Access> {
-    site: Site<A>,
+    site: Client<A>,
     search: String,
 }
 
@@ -217,7 +217,7 @@ impl<A: Access> WikiGenerator for SearchGenerator<A> {
         &self.site.url
     }
 
-    fn client(&self) -> &Client {
+    fn client(&self) -> &reqwest::Client {
         &self.site.client
     }
 
@@ -243,18 +243,18 @@ impl<A: Access> WikiGenerator for SearchGenerator<A> {
 }
 
 impl<A: Access> SearchGenerator<A> {
-    pub fn new(site: Site<A>, search: String) -> Self {
+    pub fn new(site: Client<A>, search: String) -> Self {
         Self { site, search }
     }
 }
 
 pub struct RecentChangesGenerator<A: Access> {
-    site: Site<A>,
+    site: Client<A>,
     rc: ListRc,
 }
 
 impl<A: Access> RecentChangesGenerator<A> {
-    pub fn new(site: Site<A>, rc: ListRc) -> Self {
+    pub fn new(site: Client<A>, rc: ListRc) -> Self {
         Self { site, rc }
     }
 }
@@ -265,7 +265,7 @@ impl<A: Access> WikiGenerator for RecentChangesGenerator<A> {
     fn url(&self) -> &Url {
         &self.site.url
     }
-    fn client(&self) -> &Client {
+    fn client(&self) -> &reqwest::Client {
         &self.site.client
     }
     fn create_request(&self) -> Main {
