@@ -5,7 +5,6 @@ use std::str::FromStr;
 
 use http_types::Url;
 use reqwest::header::{HeaderMap, HeaderValue, AUTHORIZATION};
-use reqwest::ClientBuilder;
 use serde_json::Value;
 use tracing::{debug, info};
 
@@ -14,23 +13,23 @@ use crate::req::{self, Login, Main};
 use crate::sealed::Access;
 use crate::{AnonymousAccess, AuthorizedAccess, BotPassword, Client, Result, UA};
 
-pub struct SiteBuilder<A: Access> {
+pub struct ClientBuilder<A: Access> {
     url: String,
-    client: ClientBuilder,
+    client: reqwest::ClientBuilder,
     user_agent: Option<Cow<'static, str>>,
     oauth: Option<String>,
     password: Option<BotPassword>,
     _ph: PhantomData<A>,
 }
 
-impl<A: Access> SiteBuilder<A> {
+impl<A: Access> ClientBuilder<A> {
     pub fn user_agent(mut self, ua: impl Into<Cow<'static, str>>) -> Self {
         self.user_agent = Some(ua.into());
         self
     }
 }
 
-impl SiteBuilder<AnonymousAccess> {
+impl ClientBuilder<AnonymousAccess> {
     // creation of new sites. Only get anonymous access since not logged in.
     pub fn new(api_url: &str) -> Self {
         let client = reqwest::Client::builder();
@@ -57,8 +56,8 @@ impl SiteBuilder<AnonymousAccess> {
         Self::new("https://publictestwiki.com/w/api.php")
     }
 
-    pub fn password(self, pass: BotPassword) -> SiteBuilder<AuthorizedAccess> {
-        SiteBuilder {
+    pub fn password(self, pass: BotPassword) -> ClientBuilder<AuthorizedAccess> {
+        ClientBuilder {
             url: self.url,
             client: self.client,
             user_agent: self.user_agent,
@@ -69,10 +68,10 @@ impl SiteBuilder<AnonymousAccess> {
     }
 
     /// to login via oauth, go to
-    /// https://meta.wikimedia.org/wiki/Special:OAuthConsumerRegistration/propose/oauth2
+    /// <https://meta.wikimedia.org/wiki/Special:OAuthConsumerRegistration/propose/oauth2>
     /// and create an owner-only application.
-    pub fn oauth(self, token: impl Into<String>) -> SiteBuilder<AuthorizedAccess> {
-        SiteBuilder {
+    pub fn oauth(self, token: impl Into<String>) -> ClientBuilder<AuthorizedAccess> {
+        ClientBuilder {
             url: self.url,
             client: self.client,
             user_agent: self.user_agent,
@@ -110,7 +109,7 @@ impl SiteBuilder<AnonymousAccess> {
     }
 }
 
-impl SiteBuilder<AuthorizedAccess> {
+impl ClientBuilder<AuthorizedAccess> {
     /// build by logging in.
     pub async fn build(mut self) -> Result<Client<AuthorizedAccess>> {
         let url: Url = self.url.parse()?;

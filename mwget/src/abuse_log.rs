@@ -11,7 +11,7 @@ use serde::{Deserialize, Deserializer, Serialize};
 use tokio::task::JoinHandle;
 use tracing::info;
 use wiki::api::{AbuseFilters, AbuseLog, Pattern, QueryResponse, RequestBuilderExt};
-use wiki::builder::SiteBuilder;
+use wiki::builder::ClientBuilder;
 use wiki::req::abuse_log::{AbuseFilterProp, AbuseLogProp, ListAbuseFilters, ListAbuseLog};
 use wiki::req::{Action, Limit, Query, QueryList};
 use wiki::Bot;
@@ -255,7 +255,7 @@ async fn parse_filters(bot: &Bot, cfg: Vec<FilterDetails>) -> color_eyre::Result
 }
 
 pub async fn catch_up() -> color_eyre::Result<JsonOutput> {
-    let bot = SiteBuilder::enwiki()
+    let bot = ClientBuilder::enwiki()
         .oauth(include_str!("../../bot_oauth.txt.secret"))
         .build()
         .await?;

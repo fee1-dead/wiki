@@ -90,7 +90,7 @@ pub mod action {
                     $Struct
                 }
             }
-            const_generics_flags!(@gen_impls($Struct, {$curname}$(,{$nextname, $nextwith})*));
+            const_generics_flags!(@gen_impls($Struct, {$($before)* $curname}$(,{$nextname, $nextwith})*));
         };
         ($(#[$meta:meta])* pub struct $Struct:ident { $($NAME:ident = { $value:literal, $with:ident$(,)? }),*$(,)? }) => {
             $(#[$meta])*
@@ -116,7 +116,7 @@ pub mod action {
         /// # Example
         /// ```
         /// use wiki::deterministic::action::ParseProps;
-        /// let props: ParseProps<false, false> = ParseProps;
+        /// let props: ParseProps<0, 0> = ParseProps;
         /// let props = props.with_text();
         /// let props = props.with_links();
         /// ```
@@ -126,8 +126,8 @@ pub mod action {
                 with_text,
             },
             LINKS = {
-                "modules",
-                with_modules,
+                "links",
+                with_links,
             },
         }
     }

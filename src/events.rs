@@ -42,7 +42,7 @@ pub struct OldNew {
     pub new: Option<u64>,
 }
 
-/// https://schema.wikimedia.org/repositories/primary/jsonschema/mediawiki/recentchange/latest.json
+/// <https://schema.wikimedia.org/repositories/primary/jsonschema/mediawiki/recentchange/latest.json>
 #[derive(Deserialize, Debug, Clone)]
 pub struct RecentChangeEvent {
     pub meta: EventMeta,

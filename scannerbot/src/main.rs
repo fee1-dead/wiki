@@ -5,7 +5,7 @@ use futures_util::{Future, TryStreamExt};
 use serde::Deserialize;
 use tracing_subscriber::EnvFilter;
 use wiki::api::{QueryResponse, RequestBuilderExt};
-use wiki::builder::SiteBuilder;
+use wiki::ClientBuilder;
 use wiki::events::{OldNew, RecentChangeEvent};
 use wiki::req::category_members::{
     CategoryMember, CategoryMembersProp, CategoryMembersResponse, CategoryMembersType,
@@ -91,7 +91,7 @@ async fn main() -> wiki::Result<()> {
         .with_env_filter(EnvFilter::from_default_env())
         .init();
     let stream = wiki::events::ReqwestSseStream::recent_changes().await?;
-    let bot = SiteBuilder::enwiki()
+    let bot = ClientBuilder::enwiki()
         .oauth(include_str!("../../bot_oauth.txt.secret"))
         .build()
         .await?;

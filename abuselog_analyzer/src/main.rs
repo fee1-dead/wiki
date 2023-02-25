@@ -8,7 +8,7 @@ use futures_util::TryStreamExt;
 use serde::Deserialize;
 use tracing_subscriber::EnvFilter;
 use wiki::api::{AbuseFilterCheckMatchResponse, AbuseLog, QueryResponse, RequestBuilderExt};
-use wiki::builder::SiteBuilder;
+use wiki::builder::ClientBuilder;
 use wiki::req::abuse_filter::{CheckMatch, CheckMatchTest};
 use wiki::req::abuse_log::{AbuseLogProp, ListAbuseLog};
 use wiki::req::{Action, Limit, QueryList};
@@ -41,14 +41,14 @@ fn from_hours_f64(x: f64) -> chrono::Duration {
 async fn main_inner() -> color_eyre::Result<()> {
     color_eyre::install()?;
     tracing_subscriber::fmt()
-    .with_env_filter(EnvFilter::from_default_env())
-    .init();
+        .with_env_filter(EnvFilter::from_default_env())
+        .init();
     let Args {
         path,
         filter_id,
         hours,
     } = Args::parse();
-    let site = SiteBuilder::enwiki()
+    let site = ClientBuilder::enwiki()
         .oauth(include_str!("../../account_oauth.txt.secret"))
         .user_agent("DeadbeefBot")
         .build()

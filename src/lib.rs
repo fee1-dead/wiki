@@ -1,4 +1,46 @@
-/// A crate for working with MediaWiki, mostly with the Action API.
+//! A crate for working with MediaWiki, mostly with the Action API.
+//!
+//! ## Examples
+//! 
+//! To create a client, use either [`Client::new`] or [`ClientBuilder`]:
+//! 
+//! ```
+//! use wiki::Client;
+//! let client = Client::new("https://en.wikipedia.org/w/api.php").unwrap();
+//! # let _ = client;
+//! ```
+//! 
+//! For common sites such as English Wikipedia, there is a short cut:
+//! 
+//! ```
+//! let client = wiki::Client::enwiki();
+//! # let _ = client;
+//! ```
+//! 
+//! To log in using bot passwords or OAuth, use [`ClientBuilder::password`] or [`ClientBuilder::oauth`]:
+//! 
+//! ```no_run
+//! use wiki::{BotPassword, ClientBuilder};
+//! # tokio_test::block_on(async {
+//! let client = ClientBuilder::enwiki()
+//!    .password(BotPassword::new("username", "password"))
+//!    .build()
+//!    .await.unwrap();
+//! # let _ = client;
+//! # });
+//! ```
+//! 
+//! ```no_run
+//! use wiki::{ClientBuilder};
+//! # tokio_test::block_on(async {
+//! let client = ClientBuilder::enwiki()
+//!   .oauth("oauth_token")
+//!   .build()
+//!   .await.unwrap();
+//! # let _ = client;
+//! # });
+//! ```
+//! 
 
 use std::fmt;
 use std::marker::PhantomData;
@@ -23,7 +65,7 @@ extern crate self as wiki;
 
 pub mod api;
 mod boring_impls;
-pub mod builder;
+mod builder;
 pub mod deterministic;
 pub mod events;
 pub mod generators;
@@ -34,9 +76,13 @@ pub mod types;
 pub mod url;
 pub mod util;
 
+pub use builder::ClientBuilder;
+
+/// A marker representing anonymous access to a MediaWiki API endpoint.
 #[derive(Clone)]
 pub struct AnonymousAccess;
 
+/// Marker for authorized access, meaning that we are logged in, either via BotPassword or OAuth.
 #[derive(Clone)]
 pub struct AuthorizedAccess(());
 
@@ -46,6 +92,7 @@ pub(crate) mod sealed {
     impl Access for super::AuthorizedAccess {}
 }
 
+/// A generic client for a MediaWiki API endpoint. Could be logged in depending on the type parameter
 pub struct Client<T: sealed::Access = AnonymousAccess> {
     pub client: reqwest::Client,
     url: Url,
@@ -71,6 +118,7 @@ impl<T: sealed::Access> fmt::Debug for Client<T> {
     }
 }
 
+/// The error type for this crate
 #[derive(thiserror::Error, Debug)]
 pub enum Error {
     #[error(transparent)]
@@ -93,14 +141,10 @@ pub enum Error {
     CustomStatic(&'static str),
 }
 
-impl From<http_types::Error> for Error {
-    fn from(e: http_types::Error) -> Self {
-        Self::HttpTypes(e)
-    }
-}
-
+/// The result type for this crate.
 pub type Result<T, E = Error> = std::result::Result<T, E>;
 
+/// A bot is a client that has authorized access to a wiki.
 pub type Bot = Client<AuthorizedAccess>;
 
 type TokensFullResponse<T> = api::QueryResponse<api::Tokens<T>>;
@@ -152,6 +196,7 @@ impl<A: sealed::Access> Client<A> {
         Ok(rev.slots.main.content)
     }
 
+    /// Start building an edit.
     pub fn build_edit(&self, page: impl Into<PageSpec>) -> req::EditBuilder<Self> {
         let q = req::EditBuilder::with_access(self.clone());
         match page.into() {
@@ -160,6 +205,7 @@ impl<A: sealed::Access> Client<A> {
         }
     }
 
+    /// Build a GET request based on the specific action. This will always use JSON format version 2.
     pub fn get(&self, action: req::Action) -> RequestBuilder {
         let url = self.mkurl(Main {
             action,
@@ -168,6 +214,8 @@ impl<A: sealed::Access> Client<A> {
         self.client.get(url)
     }
 
+    /// An experimental way for GET requests. Uses const generics to specify the actual request at
+    /// compile time and the output type is inferred from the request.
     pub async fn get_d<T: IsMain>(&self, m: T) -> Result<T::Output> {
         let mut q = crate::url::Simple::default();
         if let Err(e) = m.ser(&mut q) {
@@ -179,6 +227,7 @@ impl<A: sealed::Access> Client<A> {
         Ok(self.client.get(url).send_parse().await?)
     }
 
+    /// Build a POST request based on the specific action. This will always use JSON format version 2.
     pub fn post(&self, action: req::Action) -> RequestBuilder {
         let main = Main {
             action,
@@ -189,10 +238,12 @@ impl<A: sealed::Access> Client<A> {
             .form(&SerializeAdaptor(main))
     }
 
+    /// Retrieve a CSRF token for editing.
     pub fn get_csrf_token(&self) -> TokensFuture<CsrfToken> {
         self.get_token()
     }
 
+    /// Get a token.
     pub fn get_token<T: Token>(&self) -> TokensFuture<T> {
         let url = self.mkurl(Main {
             action: req::Action::Query(req::Query {
@@ -208,6 +259,8 @@ impl<A: sealed::Access> Client<A> {
             .map_ok(|x: api::QueryResponse<api::Tokens<T>>| x.query.tokens)
     }
 
+    /// Perform a query, except returns a `Stream` of results that continues from `continue` parameters
+    /// in the responses.
     pub fn query_all(&self, query: req::Query) -> GeneratorStream<QueryAllGenerator<A>> {
         let m = Main::query(query);
 
@@ -223,6 +276,7 @@ impl<A: sealed::Access> Client<A> {
     }
 }
 
+/// A structure for bot passwords.
 #[derive(Clone)]
 pub struct BotPassword {
     username: String,
@@ -246,6 +300,7 @@ const UA: &str = concat!(
 );
 
 impl Client {
+    /// Create a new client with anonymous access.
     pub fn new(api_url: &str) -> Result<Self> {
         let url: Url = api_url.parse()?;
         assert!(url.query().is_none());
@@ -272,16 +327,26 @@ impl Client {
         })
     }
 
+    /// Create a client for English Wikipedia (en.wikipedia.org).
     pub fn enwiki() -> Self {
         Client::new("https://en.wikipedia.org/w/api.php").unwrap()
     }
 
+    /// Create a client for Test Wikipedia (test.wikipedia.org).
     pub fn test_wikipedia() -> Self {
         Client::new("https://test.wikipedia.org/w/api.php").unwrap()
     }
 
+    /// Create a client for the public test wiki (publictestwiki.com).
     pub fn test_miraheze() -> Self {
         Client::new("https://publictestwiki.com/w/api.php").unwrap()
+    }
+}
+
+// doesn't work with serde's `#[from]`
+impl From<http_types::Error> for Error {
+    fn from(e: http_types::Error) -> Self {
+        Self::HttpTypes(e)
     }
 }
 
