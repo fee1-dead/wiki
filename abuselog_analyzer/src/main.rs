@@ -8,10 +8,10 @@ use futures_util::TryStreamExt;
 use serde::Deserialize;
 use tracing_subscriber::EnvFilter;
 use wiki::api::{AbuseFilterCheckMatchResponse, AbuseLog, QueryResponse, RequestBuilderExt};
-use wiki::ClientBuilder;
 use wiki::req::abuse_filter::{CheckMatch, CheckMatchTest};
 use wiki::req::abuse_log::{AbuseLogProp, ListAbuseLog};
 use wiki::req::{Action, Limit, QueryList};
+use wiki::ClientBuilder;
 
 #[derive(Deserialize, Debug)]
 pub struct AbuseLogEntry {

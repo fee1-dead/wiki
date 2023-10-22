@@ -1,24 +1,24 @@
 //! A crate for working with MediaWiki, mostly with the Action API.
 //!
 //! ## Examples
-//! 
+//!
 //! To create a client, use either [`Client::new`] or [`ClientBuilder`]:
-//! 
+//!
 //! ```
 //! use wiki::Client;
 //! let client = Client::new("https://en.wikipedia.org/w/api.php").unwrap();
 //! # let _ = client;
 //! ```
-//! 
+//!
 //! For common sites such as English Wikipedia, there is a short cut:
-//! 
+//!
 //! ```
 //! let client = wiki::Client::enwiki();
 //! # let _ = client;
 //! ```
-//! 
+//!
 //! To log in using bot passwords or OAuth, use [`ClientBuilder::password`] or [`ClientBuilder::oauth`]:
-//! 
+//!
 //! ```no_run
 //! use wiki::{BotPassword, ClientBuilder};
 //! # tokio_test::block_on(async {
@@ -29,7 +29,7 @@
 //! # let _ = client;
 //! # });
 //! ```
-//! 
+//!
 //! ```no_run
 //! use wiki::{ClientBuilder};
 //! # tokio_test::block_on(async {
@@ -40,7 +40,7 @@
 //! # let _ = client;
 //! # });
 //! ```
-//! 
+//!
 
 use std::fmt;
 use std::marker::PhantomData;
@@ -52,12 +52,11 @@ use futures_util::TryFutureExt;
 use generators::GeneratorStream;
 use req::{Main, PageSpec, SerializeAdaptor};
 use reqwest::header::InvalidHeaderValue;
+#[cfg(target_arch = "wasm32")]
+use reqwest::header::{HeaderMap, HeaderValue};
 use reqwest::{RequestBuilder, Url};
 use serde_json::Value;
 use tracing::debug;
-
-#[cfg(target_arch = "wasm32")]
-use reqwest::header::{HeaderMap, HeaderValue};
 
 use crate::generators::WikiGenerator;
 
@@ -309,15 +308,14 @@ impl Client {
         {
             client = client.cookie_store(true).user_agent(UA);
         }
-        
 
-        #[cfg(target_arch = "wasm32")] {
+        #[cfg(target_arch = "wasm32")]
+        {
             let mut headers = HeaderMap::new();
             headers.insert("Api-User-Agent", HeaderValue::from_static(UA));
             client = client.default_headers(headers);
         }
-        
-        
+
         let client = client.build()?;
 
         Ok(Client {

@@ -5,7 +5,6 @@ use futures_util::{Future, TryStreamExt};
 use serde::Deserialize;
 use tracing_subscriber::EnvFilter;
 use wiki::api::{QueryResponse, RequestBuilderExt};
-use wiki::ClientBuilder;
 use wiki::events::{OldNew, RecentChangeEvent};
 use wiki::req::category_members::{
     CategoryMember, CategoryMembersProp, CategoryMembersResponse, CategoryMembersType,
@@ -13,7 +12,7 @@ use wiki::req::category_members::{
 };
 use wiki::req::parse::{Parse as RParse, ParseProp};
 use wiki::req::{Action, EditBuilder, Limit, PageSpec, Query, QueryList};
-use wiki::Bot;
+use wiki::{Bot, ClientBuilder};
 
 #[derive(Deserialize, Debug)]
 pub struct Link {
