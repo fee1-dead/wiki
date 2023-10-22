@@ -8,7 +8,7 @@ use futures_util::TryStreamExt;
 use serde::Deserialize;
 use tracing_subscriber::EnvFilter;
 use wiki::api::{AbuseFilterCheckMatchResponse, AbuseLog, QueryResponse, RequestBuilderExt};
-use wiki::builder::ClientBuilder;
+use wiki::ClientBuilder;
 use wiki::req::abuse_filter::{CheckMatch, CheckMatchTest};
 use wiki::req::abuse_log::{AbuseLogProp, ListAbuseLog};
 use wiki::req::{Action, Limit, QueryList};
@@ -49,7 +49,7 @@ async fn main_inner() -> color_eyre::Result<()> {
         hours,
     } = Args::parse();
     let site = ClientBuilder::enwiki()
-        .oauth(include_str!("../../account_oauth.txt.secret"))
+        .oauth(include_str!("../../oauth_alt.txt.secret"))
         .user_agent("DeadbeefBot")
         .build()
         .await?;

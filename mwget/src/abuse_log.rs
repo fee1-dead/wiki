@@ -11,7 +11,7 @@ use serde::{Deserialize, Deserializer, Serialize};
 use tokio::task::JoinHandle;
 use tracing::info;
 use wiki::api::{AbuseFilters, AbuseLog, Pattern, QueryResponse, RequestBuilderExt};
-use wiki::builder::ClientBuilder;
+use wiki::ClientBuilder;
 use wiki::req::abuse_log::{AbuseFilterProp, AbuseLogProp, ListAbuseFilters, ListAbuseLog};
 use wiki::req::{Action, Limit, Query, QueryList};
 use wiki::Bot;

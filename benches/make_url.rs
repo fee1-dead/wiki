@@ -42,8 +42,8 @@ fn make_url_bench(c: &mut Criterion) {
                         .bot()
                         .appendtext("app")
                         .baserevid(0)
-                        .basetimestamp(MwTimestamp(DateTime::from_utc(
-                            NaiveDateTime::from_timestamp(0, 0),
+                        .basetimestamp(MwTimestamp(DateTime::from_naive_utc_and_offset(
+                            NaiveDateTime::from_timestamp_opt(0, 0).unwrap(),
                             Utc,
                         )))
                         .captchaid("captchaid")

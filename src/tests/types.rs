@@ -17,7 +17,7 @@ fn works() -> Result<(), Box<dyn Error>> {
     assert_eq!(j, serde_json::json!({ "time": "now" }));
 
     let j = serde_json::to_value(Testing {
-        time: DateTime::from_utc(
+        time: DateTime::from_naive_utc_and_offset(
             NaiveDateTime::new(
                 NaiveDate::from_ymd_opt(1337, 1, 3).unwrap(),
                 NaiveTime::from_hms_opt(3, 7, 0).unwrap(),

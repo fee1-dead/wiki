@@ -6,7 +6,7 @@ use crate::types::MwTimestamp;
 
 #[test]
 fn edit() {
-    let t = MwTimestamp(DateTime::from_utc(NaiveDateTime::from_timestamp_opt(0, 0).unwrap(), Utc));
+    let t = MwTimestamp(DateTime::from_naive_utc_and_offset(NaiveDateTime::from_timestamp_opt(0, 0).unwrap(), Utc));
     let main = Main::edit(
         EditBuilder::new()
             .title("title")

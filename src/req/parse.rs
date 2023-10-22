@@ -12,6 +12,8 @@ pub struct Parse {
     pub oldid: Option<u64>,
     pub prop: ParseProp,
     pub preview: bool,
+    pub pst: bool,
+    pub onlypst: bool,
 }
 
 wikiproc::bitflags! {
