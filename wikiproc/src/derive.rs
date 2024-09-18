@@ -1,7 +1,9 @@
 use proc_macro2::{Span, TokenStream as Ts};
 use quote::quote;
+use syn::meta::ParseNestedMeta;
+use syn::punctuated::Punctuated;
 use syn::spanned::Spanned;
-use syn::{Data, Fields, FieldsUnnamed, Lit, LitInt, Meta, MetaNameValue, NestedMeta};
+use syn::{Data, Expr, ExprLit, Fields, FieldsUnnamed, Lit, LitInt, LitStr, Meta, MetaNameValue, PatLit, Token};
 use synstructure::VariantInfo;
 
 #[derive(Default)]
@@ -19,62 +21,34 @@ struct FieldOptions {
 }
 
 impl Options {
-    pub fn parse(meta: Meta) -> syn::Result<Self> {
-        let mut r = Self::default();
-        match meta {
-            Meta::List(ml) => {
-                for m in ml.nested {
-                    match m {
-                        NestedMeta::Meta(Meta::Path(p)) if p.is_ident("named") => {
-                            r.named = Some(true)
-                        }
-                        NestedMeta::Meta(Meta::Path(p)) if p.is_ident("unnamed") => {
-                            r.named = Some(false)
-                        }
-                        NestedMeta::Meta(Meta::Path(p)) if p.is_ident("mutual_exclusive") => {
-                            r.mutual_exclusive = true;
-                        }
-                        NestedMeta::Meta(Meta::NameValue(MetaNameValue {
-                            path,
-                            lit: Lit::Str(s),
-                            ..
-                        })) if path.is_ident("prepend_all") => {
-                            r.prepend_all = Some(s.value());
-                        }
-                        _ => return Err(syn::Error::new_spanned(m, "invalid meta")),
-                    }
-                }
-            }
-            _ => return Err(syn::Error::new_spanned(meta, "invalid options")),
+    pub fn parse(&mut self, meta: ParseNestedMeta<'_>) -> syn::Result<()> {
+        let span = meta.input.span();
+        if meta.path.is_ident("named") {
+            self.named = Some(true)
+        } else if meta.path.is_ident("unnamed") {
+            self.named = Some(false)
+        } else if meta.path.is_ident("mutual_exclusive") {
+            self.mutual_exclusive = true;
+        } else if meta.path.is_ident("prepend_all") {
+            self.prepend_all = Some(meta.value()?.parse::<LitStr>()?.value())
+        } else {
+            return Err(syn::Error::new(span, "invalid options"))
         }
-        Ok(r)
+        Ok(())
     }
 }
 
 impl FieldOptions {
-    pub fn parse(meta: Meta) -> syn::Result<Self> {
-        let mut r = Self::default();
-        let span = meta.span();
-        match meta {
-            Meta::List(ml) => {
-                for m in ml.nested {
-                    match m {
-                        NestedMeta::Meta(Meta::NameValue(MetaNameValue {
-                            path,
-                            lit: syn::Lit::Str(s),
-                            ..
-                        })) if path.is_ident("name") => r.override_name = Some(s.value()),
-                        NestedMeta::Meta(Meta::Path(p)) if p.is_ident("flatten") => {
-                            r.flatten = true
-                        }
-                        _ => return Err(syn::Error::new_spanned(m, "invalid meta")),
-                    }
-                }
-            }
-            _ => return Err(syn::Error::new_spanned(meta, "invalid options")),
+    pub fn parse(&mut self, meta: ParseNestedMeta<'_>) -> syn::Result<()> {
+        let span = meta.input.span();
+        if meta.path.is_ident("name") {
+            self.override_name = Some(meta.value()?.parse::<LitStr>()?.value());
+        } else if meta.path.is_ident("flatten") {
+            self.flatten = true
+        } else {
+            return Err(syn::Error::new(span, "invalid meta"))
         }
-        r.verify(span)?;
-        Ok(r)
+        self.verify(span)
     }
 
     pub fn verify(&self, s: Span) -> syn::Result<()> {
@@ -100,12 +74,10 @@ fn gen_fields(v: &VariantInfo, o: &Options) -> Ts {
             .map(|b| {
                 let mut opts = FieldOptions::default();
                 for a in &b.ast().attrs {
-                    if a.path.is_ident("wp") {
-                        let m = match a.parse_meta() {
-                            Ok(m) => m,
-                            Err(e) => return e.into_compile_error(),
-                        };
-                        opts = match FieldOptions::parse(m) {
+                    if a.path().is_ident("wp") {
+                        match a.parse_nested_meta(|p| {
+                            opts.parse(p)
+                        }) {
                             Ok(opts) => opts,
                             Err(e) => return e.into_compile_error(),
                         };
@@ -155,25 +127,17 @@ fn gen_fields(v: &VariantInfo, o: &Options) -> Ts {
 }
 
 fn variant_name(v: &VariantInfo) -> String {
-    let attr = v.ast().attrs.iter().find(|a| a.path.is_ident("wp"));
-    let name = attr.and_then(|a| a.parse_meta().ok()).and_then(|m| {
-        let m = if let Meta::List(l) = m {
-            l.nested.into_iter().next()?
-        } else {
-            return None;
-        };
-        if let NestedMeta::Meta(Meta::NameValue(MetaNameValue {
-            path,
-            lit: Lit::Str(s),
-            ..
-        })) = m
-        {
-            if path.is_ident("name") {
-                return Some(s);
+    let attr = v.ast().attrs.iter().find(|a| a.path().is_ident("wp"));
+    let mut name = None;
+
+    if let Some(attr) = attr {
+        let _ = attr.parse_nested_meta(|pm| {
+            if pm.path.is_ident("name") {
+                name = pm.value().and_then(|p| p.parse::<LitStr>()).ok();
             }
-        }
-        None
-    });
+            Ok(())
+        });
+    }
 
     name.map(|s| s.value())
         .unwrap_or_else(|| v.ast().ident.to_string().to_ascii_lowercase())
@@ -182,9 +146,8 @@ fn variant_name(v: &VariantInfo) -> String {
 pub fn derive_write_url(s: synstructure::Structure) -> syn::Result<Ts> {
     let mut opts = Options::default();
     for attr in &s.ast().attrs {
-        if attr.path.get_ident().map_or(false, |i| i == "wp") {
-            let m = attr.parse_meta()?;
-            opts = Options::parse(m)?;
+        if attr.path().get_ident().map_or(false, |i| i == "wp") {
+            attr.parse_nested_meta(|pm| opts.parse(pm))?;
         }
     }
 
