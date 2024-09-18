@@ -11,6 +11,7 @@ pub struct ListLogEvents {
 }
 
 wikiproc::bitflags! {
+    #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
     pub struct LogEventsProp: u16 {
         const IDS           = 1 << 0;
         const TITLE         = 1 << 1;
@@ -22,13 +23,13 @@ wikiproc::bitflags! {
         const PARSEDCOMMENT = 1 << 7;
         const TAGS          = 1 << 8;
         const USERID        = 1 << 9;
-        const DEFAULT = ( Self::IDS.bits
-                        | Self::TITLE.bits
-                        | Self::TYPE.bits
-                        | Self::USER.bits
-                        | Self::TIMESTAMP.bits
-                        | Self::COMMENT.bits
-                        | Self::DETAILS.bits
+        const DEFAULT = ( Self::IDS.bits()
+                        | Self::TITLE.bits()
+                        | Self::TYPE.bits()
+                        | Self::USER.bits()
+                        | Self::TIMESTAMP.bits()
+                        | Self::COMMENT.bits()
+                        | Self::DETAILS.bits()
                         );
     }
 }

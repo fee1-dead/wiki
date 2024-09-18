@@ -1,4 +1,4 @@
-use chrono::{DateTime, NaiveDateTime, Utc};
+use chrono::DateTime;
 use criterion::{criterion_group, criterion_main, Criterion};
 use wiki::req::{EditBuilder, Main};
 use wiki::types::MwTimestamp;
@@ -42,10 +42,7 @@ fn make_url_bench(c: &mut Criterion) {
                         .bot()
                         .appendtext("app")
                         .baserevid(0)
-                        .basetimestamp(MwTimestamp(DateTime::from_naive_utc_and_offset(
-                            NaiveDateTime::from_timestamp_opt(0, 0).unwrap(),
-                            Utc,
-                        )))
+                        .basetimestamp(MwTimestamp(DateTime::from_timestamp(0, 0).unwrap()))
                         .captchaid("captchaid")
                         .captchaword("captchaword")
                         .contentformat("ctfmt")

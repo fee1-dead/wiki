@@ -21,6 +21,7 @@ pub enum Selector {
 }
 
 wikiproc::bitflags! {
+    #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
     pub struct UserContribsProp: u16 {
         const IDS           = 1 << 0;
         const TITLE         = 1 << 1;

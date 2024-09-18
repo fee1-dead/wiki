@@ -1,9 +1,8 @@
 use proc_macro2::{Span, TokenStream as Ts};
 use quote::quote;
 use syn::meta::ParseNestedMeta;
-use syn::punctuated::Punctuated;
 use syn::spanned::Spanned;
-use syn::{Data, Expr, ExprLit, Fields, FieldsUnnamed, Lit, LitInt, LitStr, Meta, MetaNameValue, PatLit, Token};
+use syn::{Data, Fields, FieldsUnnamed, LitInt, LitStr};
 use synstructure::VariantInfo;
 
 #[derive(Default)]

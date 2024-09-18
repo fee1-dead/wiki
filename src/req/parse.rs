@@ -17,6 +17,7 @@ pub struct Parse {
 }
 
 wikiproc::bitflags! {
+    #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
     pub struct ParseProp: u32 {
         const TEXT = 1 << 0;
         const LANGLINKS = 1 << 1;
@@ -43,19 +44,19 @@ wikiproc::bitflags! {
         const PARSE_TREE = 1 << 22;
         const PARSE_WARNINGS = 1 << 23;
         const PARSE_WARNINGS_HTML = 1 << 24;
-        const DEFAULT = Self::TEXT.bits
-        | Self::LANGLINKS.bits
-        | Self::CATEGORIES.bits
-        | Self::LINKS.bits
-        | Self::TEMPLATES.bits
-        | Self::IMAGES.bits
-        | Self::EXTERNAL_LINKS.bits
-        | Self::SECTIONS.bits
-        | Self::REV_ID.bits
-        | Self::DISPLAY_TITLE.bits
-        | Self::IWLINKS.bits
-        | Self::PROPERTIES.bits
-        | Self::PARSE_WARNINGS.bits;
+        const DEFAULT = Self::TEXT.bits()
+        | Self::LANGLINKS.bits()
+        | Self::CATEGORIES.bits()
+        | Self::LINKS.bits()
+        | Self::TEMPLATES.bits()
+        | Self::IMAGES.bits()
+        | Self::EXTERNAL_LINKS.bits()
+        | Self::SECTIONS.bits()
+        | Self::REV_ID.bits()
+        | Self::DISPLAY_TITLE.bits()
+        | Self::IWLINKS.bits()
+        | Self::PROPERTIES.bits()
+        | Self::PARSE_WARNINGS.bits();
     }
 }
 

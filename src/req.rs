@@ -401,6 +401,7 @@ pub enum QueryGenerator {
 }
 
 wikiproc::bitflags! {
+    #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
     pub struct RvProp: u32 {
         const CONTENT = 1 << 0;
         const COMMENT = 1 << 1;
@@ -430,6 +431,7 @@ pub enum RvSlot {
 }
 
 wikiproc::bitflags! {
+    #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
     pub struct TokenType: u16 {
         const CREATE_ACCOUNT = 1 << 0;
         const CSRF = 1 << 1;

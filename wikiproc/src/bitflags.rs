@@ -2,7 +2,7 @@ use proc_macro2::{Ident, TokenStream};
 use quote::quote;
 use syn::parse::Parse;
 use syn::token::Brace;
-use syn::{braced, parse2, Expr, Token, Visibility};
+use syn::{braced, parse2, Attribute, Expr, Token, Visibility};
 
 pub fn bitflags(input: TokenStream) -> syn::Result<TokenStream> {
     let tts = input.clone();
@@ -40,56 +40,59 @@ pub fn bitflags(input: TokenStream) -> syn::Result<TokenStream> {
 }
 
 pub struct BitflagsInput {
-    pub vis: Visibility,
-    pub struct_: Token![struct],
+    pub _attrs: Vec<Attribute>,
+    pub _vis: Visibility,
+    pub _struct: Token![struct],
     pub name: Ident,
-    pub colon: Token![:],
-    pub ty: Ident,
-    pub brace: Brace,
+    pub _colon: Token![:],
+    pub _ty: Ident,
+    pub _brace: Brace,
     pub fields: Vec<Bitfield>,
 }
 
 impl Parse for BitflagsInput {
     fn parse(input: syn::parse::ParseStream) -> syn::Result<Self> {
-        let vis = input.parse()?;
-        let struct_ = input.parse()?;
+        let _attrs = input.call(Attribute::parse_outer)?;
+        let _vis = input.parse()?;
+        let _struct = input.parse()?;
         let name = input.parse()?;
-        let colon = input.parse()?;
-        let ty = input.parse()?;
+        let _colon = input.parse()?;
+        let _ty = input.parse()?;
         let content;
-        let brace = braced!(content in input);
+        let _brace = braced!(content in input);
         let mut fields = vec![];
         while !content.is_empty() {
             fields.push(content.parse()?);
         }
         Ok(Self {
-            vis,
-            struct_,
+            _attrs,
+            _vis,
+            _struct,
             name,
-            colon,
-            ty,
-            brace,
+            _colon,
+            _ty,
+            _brace,
             fields,
         })
     }
 }
 
 pub struct Bitfield {
-    pub const_: Token![const],
+    pub _const: Token![const],
     pub name: Ident,
-    pub eq: Token![=],
-    pub exp: Expr,
-    pub semi: Token![;],
+    pub _eq: Token![=],
+    pub _exp: Expr,
+    pub _semi: Token![;],
 }
 
 impl Parse for Bitfield {
     fn parse(input: syn::parse::ParseStream) -> syn::Result<Self> {
         Ok(Self {
-            const_: input.parse()?,
+            _const: input.parse()?,
             name: input.parse()?,
-            eq: input.parse()?,
-            exp: input.parse()?,
-            semi: input.parse()?,
+            _eq: input.parse()?,
+            _exp: input.parse()?,
+            _semi: input.parse()?,
         })
     }
 }

@@ -26,6 +26,7 @@ pub struct SearchGenerator {
 }
 
 bitflags! {
+    #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
     pub struct SearchProp: u16 {
         const CATEGORY_SNIPPET = 1 << 0;
         const EXTENSION_DATA = 1 << 1;
@@ -41,6 +42,7 @@ bitflags! {
 }
 
 bitflags! {
+    #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
     pub struct SearchInfo: u8 {
         const REWRITTEN_QUERY = 1 << 0;
         const SUGGESTION = 1 << 1;

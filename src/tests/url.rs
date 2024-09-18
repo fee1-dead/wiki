@@ -1,4 +1,4 @@
-use chrono::{DateTime, NaiveDateTime, Utc};
+use chrono::DateTime;
 
 use crate::api::mkurl;
 use crate::req::{EditBuilder, Main};
@@ -6,10 +6,8 @@ use crate::types::MwTimestamp;
 
 #[test]
 fn edit() {
-    let t = MwTimestamp(DateTime::from_naive_utc_and_offset(
-        NaiveDateTime::from_timestamp_opt(0, 0).unwrap(),
-        Utc,
-    ));
+    
+    let t = MwTimestamp(DateTime::from_timestamp(0, 0).unwrap());
     let main = Main::edit(
         EditBuilder::new()
             .title("title")

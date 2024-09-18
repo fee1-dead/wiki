@@ -15,6 +15,7 @@ pub struct ListRc {
 
 #[rustfmt::skip]
 wikiproc::bitflags! {
+    #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
     pub struct RcProp: u16 {
         const TITLE          = 1 <<  0;
         const TIMESTAMP      = 1 <<  1;
@@ -33,6 +34,7 @@ wikiproc::bitflags! {
 
 #[rustfmt::skip]
 wikiproc::bitflags! {
+    #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
     pub struct RcType: u8 {
         const EDIT       = 1 << 0;
         const NEW        = 1 << 1;

@@ -16,6 +16,7 @@ pub struct ListCategoryMembers {
 }
 
 bitflags! {
+    #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
     pub struct CategoryMembersType: u8 {
         const FILE = 1;
         const PAGE = 2;
@@ -24,6 +25,7 @@ bitflags! {
 }
 
 bitflags! {
+    #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
     pub struct CategoryMembersProp: u8 {
         const IDS = 1 << 0;
         const SORT_KEY = 1 << 1;

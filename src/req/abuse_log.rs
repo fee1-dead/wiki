@@ -24,6 +24,7 @@ pub struct ListAbuseLog {
 }
 
 wikiproc::bitflags! {
+    #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
     pub struct AbuseLogProp: u16 {
         const DETAILS   = 1 << 0;
         const ACTION    = 1 << 1;
@@ -39,6 +40,7 @@ wikiproc::bitflags! {
 }
 
 wikiproc::bitflags! {
+    #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
     pub struct AbuseFilterProp: u16 {
         const ID = 1 << 0;
         const DESCRIPTION = 1 << 1;
